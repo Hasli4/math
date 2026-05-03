@@ -144,6 +144,14 @@
       border-bottom: 1px solid rgba(207, 219, 226, 0.74);
     }
 
+    .panel-header-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
     .panel-title {
       margin: 0;
       font-size: 1.05rem;
@@ -835,6 +843,7 @@
     }
 
     .canvas-shell {
+      position: relative;
       padding: 18px;
       overflow: auto;
       background:
@@ -855,6 +864,21 @@
       background: #fff;
       box-shadow: 0 12px 32px rgba(23, 33, 43, 0.13);
       touch-action: none;
+    }
+
+    .canvas-text-editor {
+      position: absolute;
+      z-index: 4;
+      min-width: 72px;
+      height: 36px;
+      border: 2px solid var(--primary);
+      border-radius: 4px;
+      padding: 2px 6px;
+      background: rgba(255, 255, 255, 0.96);
+      color: var(--ink);
+      font-weight: 800;
+      outline: none;
+      box-shadow: 0 8px 20px rgba(23, 33, 43, 0.18);
     }
 
     .stage-detail-panel {

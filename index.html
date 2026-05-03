@@ -233,6 +233,11 @@
 
             <div class="drawing-toolbar" aria-label="Инструменты редактора">
               <div class="tool-group" role="group" aria-label="Инструменты">
+                <button class="tool-btn" type="button" data-tool="select" title="Выбрать объект" aria-label="Выбрать объект">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 4l6 16 2-7 7-2L5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                  </svg>
+                </button>
                 <button class="tool-btn active" type="button" data-tool="pen" title="Карандаш" aria-label="Карандаш">
                   <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20zM14 7l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -281,9 +286,14 @@
                     <path d="M9 14l-4-4 4-4M5 10h9a5 5 0 0 1 0 10h-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
                 </button>
-                <button class="tool-btn" id="clearAnnotations" type="button" title="Очистить рисунок" aria-label="Очистить рисунок">
+                <button class="tool-btn" id="deleteSelected" type="button" title="Удалить выбранное" aria-label="Удалить выбранное">
                   <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M6 7h12M10 11v6M14 11v6M8 7l1-3h6l1 3M8 7v12h8V7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <button class="tool-btn" id="clearAnnotations" type="button" title="Очистить рисунок" aria-label="Очистить рисунок">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 15l8-8a3 3 0 0 1 4 0l1 1a3 3 0 0 1 0 4l-7 7H4v-4zM9 19l-5-5M13 18h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
                 </button>
                 <button class="tool-btn" id="downloadCanvas" type="button" title="Скачать PNG" aria-label="Скачать PNG">
@@ -294,8 +304,9 @@
               </div>
             </div>
 
-            <div class="canvas-shell">
+            <div class="canvas-shell" id="canvasShell">
               <canvas id="problemCanvas" width="960" height="620"></canvas>
+              <input id="canvasTextEditor" class="canvas-text-editor" type="text" hidden>
             </div>
           </section>
 
@@ -305,7 +316,10 @@
                 <h2 class="panel-title">Ход решения этапа</h2>
                 <p class="panel-note">Текст и подэтапы привязаны к активной вкладке.</p>
               </div>
-              <button class="ghost-btn" id="saveStage" type="button">Сохранить этап</button>
+              <div class="panel-header-actions">
+                <button class="ghost-btn" id="transferPreviousAnnotations" type="button">Перенести рисунки</button>
+                <button class="ghost-btn" id="saveStage" type="button">Сохранить этап</button>
+              </div>
             </div>
 
             <div class="stage-detail-body">

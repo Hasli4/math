@@ -594,15 +594,19 @@
       stageTitle: document.getElementById("stageTitle"),
       stageSolution: document.getElementById("stageSolution"),
       saveStage: document.getElementById("saveStage"),
+      transferPrevious: document.getElementById("transferPreviousAnnotations"),
       substepText: document.getElementById("substepText"),
       addSubstep: document.getElementById("addSubstep"),
       substepsList: document.getElementById("substepsList"),
+      canvasShell: document.getElementById("canvasShell"),
       canvas: document.getElementById("problemCanvas"),
+      canvasTextEditor: document.getElementById("canvasTextEditor"),
       strokeColor: document.getElementById("strokeColor"),
       strokeWidth: document.getElementById("strokeWidth"),
       fontSize: document.getElementById("fontSize"),
       annotationText: document.getElementById("annotationText"),
       undo: document.getElementById("undoAnnotation"),
+      deleteSelected: document.getElementById("deleteSelected"),
       clear: document.getElementById("clearAnnotations"),
       download: document.getElementById("downloadCanvas")
     };
@@ -612,18 +616,38 @@
         title: `Этап ${number}`,
         solution: "",
         substeps: [],
-        annotations: []
+        annotations: [],
+        history: {
+          undoStack: [[]],
+          redoStack: []
+        }
       };
     }
+
+    const annotationHistoryLimit = 80;
 
     const problemState = {
       tool: "pen",
       stages: [createStage(1)],
       activeStageIndex: 0,
       annotations: [],
+      selectedAnnotationIndex: null,
+      selectedAnnotationIndexes: [],
       selectedTextIndex: null,
+      editingTextIndex: null,
       draggingText: false,
+      movingAnnotation: false,
+      resizingAnnotation: false,
+      selectingBox: false,
+      selectionBox: null,
+      selectionBoxAdditive: false,
+      resizeHandle: null,
+      lastPoint: null,
+      lastCanvasPoint: null,
+      mouseInCanvas: false,
+      originalAnnotation: null,
       dragOffset: { x: 0, y: 0 },
+      clipboard: null,
       image: null,
       imageBounds: null,
       isDrawing: false,
@@ -650,6 +674,105 @@
       return problemState.stages[problemState.activeStageIndex];
     }
 
+    function snapshotAnnotations(source = problemState.annotations) {
+      return cloneAnnotations(source);
+    }
+
+    function snapshotsEqual(first, second) {
+      return JSON.stringify(first) === JSON.stringify(second);
+    }
+
+    function ensureStageHistory(stage) {
+      if (!stage) {
+        return;
+      }
+      if (!stage.history || !Array.isArray(stage.history.undoStack) || !Array.isArray(stage.history.redoStack)) {
+        stage.history = {
+          undoStack: [snapshotAnnotations(stage.annotations || [])],
+          redoStack: []
+        };
+        return;
+      }
+      if (stage.history.undoStack.length === 0) {
+        stage.history.undoStack = [snapshotAnnotations(stage.annotations || [])];
+      }
+    }
+
+    function currentStageHistory() {
+      const stage = activeStage();
+      ensureStageHistory(stage);
+      return stage.history;
+    }
+
+    function rememberAnnotationState(force = false) {
+      const history = currentStageHistory();
+      const snapshot = snapshotAnnotations();
+      const lastSnapshot = history.undoStack[history.undoStack.length - 1];
+      if (!force && lastSnapshot && snapshotsEqual(lastSnapshot, snapshot)) {
+        return false;
+      }
+      history.undoStack.push(snapshot);
+      if (history.undoStack.length > annotationHistoryLimit) {
+        history.undoStack.shift();
+      }
+      history.redoStack = [];
+      return true;
+    }
+
+    function restoreAnnotationSnapshot(snapshot) {
+      problemState.annotations = snapshotAnnotations(snapshot);
+      clearAnnotationSelection();
+      persistVisuals();
+      drawProblemCanvas();
+    }
+
+    function undoAnnotations() {
+      closeCanvasTextEditor(true);
+      const history = currentStageHistory();
+      const currentSnapshot = snapshotAnnotations();
+      const lastSnapshot = history.undoStack[history.undoStack.length - 1];
+
+      if (lastSnapshot && !snapshotsEqual(lastSnapshot, currentSnapshot)) {
+        history.redoStack.push(currentSnapshot);
+        restoreAnnotationSnapshot(lastSnapshot);
+        return;
+      }
+
+      if (history.undoStack.length <= 1) {
+        return;
+      }
+
+      history.redoStack.push(currentSnapshot);
+      history.undoStack.pop();
+      restoreAnnotationSnapshot(history.undoStack[history.undoStack.length - 1]);
+    }
+
+    function redoAnnotations() {
+      closeCanvasTextEditor(true);
+      const history = currentStageHistory();
+      if (history.redoStack.length === 0) {
+        return;
+      }
+
+      const nextSnapshot = history.redoStack.pop();
+      history.undoStack.push(snapshotAnnotations(nextSnapshot));
+      if (history.undoStack.length > annotationHistoryLimit) {
+        history.undoStack.shift();
+      }
+      restoreAnnotationSnapshot(nextSnapshot);
+    }
+
+    function selectAllAnnotations() {
+      closeCanvasTextEditor(true);
+      if (problemState.annotations.length === 0) {
+        return;
+      }
+      problemState.selectedAnnotationIndexes = problemState.annotations.map((_, index) => index);
+      problemState.selectedAnnotationIndex = problemState.selectedAnnotationIndexes[problemState.selectedAnnotationIndexes.length - 1];
+      syncSelectedTextControls();
+      setTool("select", true);
+    }
+
     function persistActiveStage() {
       const stage = activeStage();
       if (!stage) {
@@ -657,6 +780,7 @@
       }
       stage.title = problemElements.stageTitle.value.trim() || `Этап ${problemState.activeStageIndex + 1}`;
       stage.solution = problemElements.stageSolution.value;
+      ensureStageHistory(stage);
       stage.annotations = cloneAnnotations();
     }
 
@@ -688,11 +812,15 @@
       const stage = activeStage();
       problemElements.stageTitle.value = stage.title;
       problemElements.stageSolution.value = stage.solution;
+      ensureStageHistory(stage);
       problemState.annotations = cloneAnnotations(stage.annotations);
+      problemState.selectedAnnotationIndex = null;
+      problemState.selectedAnnotationIndexes = [];
       problemState.selectedTextIndex = null;
       problemElements.substepText.value = "";
       renderStageTabs();
       renderSubsteps();
+      problemElements.transferPrevious.disabled = problemState.activeStageIndex === 0;
       drawProblemCanvas();
     }
 
@@ -700,12 +828,14 @@
       if (index < 0 || index >= problemState.stages.length) {
         return;
       }
+      closeCanvasTextEditor(true);
       persistActiveStage();
       problemState.activeStageIndex = index;
       loadActiveStageIntoForm();
     }
 
     function addStage() {
+      closeCanvasTextEditor(true);
       persistActiveStage();
       problemState.stages.push(createStage(problemState.stages.length + 1));
       problemState.activeStageIndex = problemState.stages.length - 1;
@@ -713,6 +843,7 @@
     }
 
     function saveStage() {
+      closeCanvasTextEditor(true);
       persistActiveStage();
       renderStageTabs();
       renderSubsteps();
@@ -721,11 +852,14 @@
     function setTool(tool, keepSelection = false) {
       problemState.tool = tool;
       if (tool !== "text" && !keepSelection) {
+        problemState.selectedAnnotationIndex = null;
+        problemState.selectedAnnotationIndexes = [];
         problemState.selectedTextIndex = null;
       }
       document.querySelectorAll("[data-tool]").forEach((button) => {
         button.classList.toggle("active", button.dataset.tool === tool);
       });
+      setBaseCanvasCursor();
       drawProblemCanvas();
     }
 
@@ -735,6 +869,32 @@
         x: (event.clientX - rect.left) * (problemElements.canvas.width / rect.width),
         y: (event.clientY - rect.top) * (problemElements.canvas.height / rect.height)
       };
+    }
+
+    function canvasRectMetrics() {
+      const canvasRect = problemElements.canvas.getBoundingClientRect();
+      const shellRect = problemElements.canvasShell.getBoundingClientRect();
+      return {
+        left: canvasRect.left - shellRect.left + problemElements.canvasShell.scrollLeft,
+        top: canvasRect.top - shellRect.top + problemElements.canvasShell.scrollTop,
+        scaleX: canvasRect.width / problemElements.canvas.width,
+        scaleY: canvasRect.height / problemElements.canvas.height
+      };
+    }
+
+    function isTypingTarget(target) {
+      if (!target) {
+        return false;
+      }
+      const tag = target.tagName;
+      if (tag === "TEXTAREA" || target.isContentEditable) {
+        return true;
+      }
+      if (tag !== "INPUT") {
+        return false;
+      }
+      const type = (target.type || "text").toLowerCase();
+      return !["button", "submit", "range", "color", "file", "checkbox", "radio"].includes(type);
     }
 
     function currentDrawingStyle() {
@@ -749,18 +909,21 @@
       const canvas = problemElements.canvas;
       const image = problemState.image;
       if (!image) {
+        const hasCanvasContent = problemState.annotations.length > 0 || Boolean(problemState.draft);
         problemCtx.save();
         problemCtx.setLineDash([12, 10]);
         problemCtx.strokeStyle = "rgba(23, 33, 43, 0.22)";
         problemCtx.lineWidth = 2;
         problemCtx.strokeRect(36, 36, canvas.width - 72, canvas.height - 72);
         problemCtx.setLineDash([]);
-        problemCtx.fillStyle = "#607080";
-        problemCtx.font = "700 28px Segoe UI, Arial, sans-serif";
-        problemCtx.textAlign = "center";
-        problemCtx.fillText("Загрузите изображение задачи", canvas.width / 2, canvas.height / 2 - 10);
-        problemCtx.font = "18px Segoe UI, Arial, sans-serif";
-        problemCtx.fillText("После этого можно рисовать поверх него", canvas.width / 2, canvas.height / 2 + 26);
+        if (!hasCanvasContent) {
+          problemCtx.fillStyle = "#607080";
+          problemCtx.font = "700 28px Segoe UI, Arial, sans-serif";
+          problemCtx.textAlign = "center";
+          problemCtx.fillText("Загрузите изображение задачи", canvas.width / 2, canvas.height / 2 - 10);
+          problemCtx.font = "18px Segoe UI, Arial, sans-serif";
+          problemCtx.fillText("После этого можно рисовать поверх него", canvas.width / 2, canvas.height / 2 + 26);
+        }
         problemCtx.restore();
         return;
       }
@@ -804,6 +967,151 @@
       };
     }
 
+    function pathBounds(annotation) {
+      const xs = annotation.points.map((point) => point.x);
+      const ys = annotation.points.map((point) => point.y);
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
+      const maxX = Math.max(...xs);
+      const maxY = Math.max(...ys);
+      return {
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY
+      };
+    }
+
+    function annotationBounds(annotation) {
+      if (annotation.type === "text") {
+        return textBounds(annotation);
+      }
+      if (annotation.type === "path") {
+        return pathBounds(annotation);
+      }
+      return normalizeRect(annotation);
+    }
+
+    function boundsFromPoints(start, end) {
+      return {
+        x: Math.min(start.x, end.x),
+        y: Math.min(start.y, end.y),
+        width: Math.abs(end.x - start.x),
+        height: Math.abs(end.y - start.y)
+      };
+    }
+
+    function boundsIntersect(first, second) {
+      return first.x <= second.x + second.width
+        && first.x + first.width >= second.x
+        && first.y <= second.y + second.height
+        && first.y + first.height >= second.y;
+    }
+
+    function groupBounds(annotations) {
+      if (annotations.length === 0) {
+        return { x: 0, y: 0, width: 0, height: 0 };
+      }
+      const bounds = annotations.map(annotationBounds);
+      const minX = Math.min(...bounds.map((item) => item.x));
+      const minY = Math.min(...bounds.map((item) => item.y));
+      const maxX = Math.max(...bounds.map((item) => item.x + item.width));
+      const maxY = Math.max(...bounds.map((item) => item.y + item.height));
+      return {
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY
+      };
+    }
+
+    function resizeHandles(bounds) {
+      return [
+        { name: "nw", x: bounds.x, y: bounds.y },
+        { name: "ne", x: bounds.x + bounds.width, y: bounds.y },
+        { name: "sw", x: bounds.x, y: bounds.y + bounds.height },
+        { name: "se", x: bounds.x + bounds.width, y: bounds.y + bounds.height }
+      ];
+    }
+
+    function pointInBounds(point, bounds) {
+      return point.x >= bounds.x
+        && point.x <= bounds.x + bounds.width
+        && point.y >= bounds.y
+        && point.y <= bounds.y + bounds.height;
+    }
+
+    function findResizeHandleAt(point) {
+      if (problemState.selectedAnnotationIndexes.length !== 1) {
+        return null;
+      }
+      const annotation = problemState.annotations[problemState.selectedAnnotationIndex];
+      if (!annotation || (annotation.type !== "rectangle" && annotation.type !== "oval")) {
+        return null;
+      }
+      const handleSize = 10;
+      const bounds = annotationBounds(annotation);
+      return resizeHandles(bounds).find((handle) => (
+        Math.abs(point.x - handle.x) <= handleSize
+        && Math.abs(point.y - handle.y) <= handleSize
+      ))?.name || null;
+    }
+
+    function findAnnotationAt(point) {
+      for (let index = problemState.annotations.length - 1; index >= 0; index -= 1) {
+        const annotation = problemState.annotations[index];
+        const bounds = annotationBounds(annotation);
+        if (pointInBounds(point, bounds)) {
+          return index;
+        }
+      }
+      return -1;
+    }
+
+    function resizeCursor(handle) {
+      if (handle === "nw" || handle === "se") {
+        return "nwse-resize";
+      }
+      if (handle === "ne" || handle === "sw") {
+        return "nesw-resize";
+      }
+      return "default";
+    }
+
+    function setBaseCanvasCursor() {
+      if (problemState.tool === "text") {
+        problemElements.canvas.style.cursor = "text";
+        return;
+      }
+      if (problemState.tool === "pen" || problemState.tool === "rectangle" || problemState.tool === "oval") {
+        problemElements.canvas.style.cursor = "crosshair";
+        return;
+      }
+      problemElements.canvas.style.cursor = "default";
+    }
+
+    function updateCanvasCursor(event) {
+      if (problemState.draggingText || problemState.movingAnnotation || problemState.resizingAnnotation || problemState.isDrawing) {
+        return;
+      }
+      if (problemState.tool === "select") {
+        const point = canvasPoint(event);
+        const handle = findResizeHandleAt(point);
+        if (handle) {
+          problemElements.canvas.style.cursor = resizeCursor(handle);
+          return;
+        }
+        problemElements.canvas.style.cursor = findAnnotationAt(point) >= 0 ? "move" : "default";
+        return;
+      }
+      if (problemState.tool === "text") {
+        const point = canvasPoint(event);
+        problemElements.canvas.style.cursor = findTextAt(point) >= 0 ? "move" : "text";
+        return;
+      }
+      problemElements.canvas.style.cursor = "crosshair";
+    }
+
     function findTextAt(point) {
       for (let index = problemState.annotations.length - 1; index >= 0; index -= 1) {
         const annotation = problemState.annotations[index];
@@ -821,13 +1129,36 @@
     }
 
     function drawSelection(annotation) {
-      const bounds = textBounds(annotation);
+      const bounds = annotationBounds(annotation);
       problemCtx.save();
       problemCtx.setLineDash([7, 6]);
       problemCtx.strokeStyle = "#176b87";
       problemCtx.lineWidth = 2;
       problemCtx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
       problemCtx.setLineDash([]);
+      if (annotation.type === "rectangle" || annotation.type === "oval") {
+        problemCtx.fillStyle = "#ffffff";
+        problemCtx.strokeStyle = "#176b87";
+        resizeHandles(bounds).forEach((handle) => {
+          problemCtx.fillRect(handle.x - 5, handle.y - 5, 10, 10);
+          problemCtx.strokeRect(handle.x - 5, handle.y - 5, 10, 10);
+        });
+      }
+      problemCtx.restore();
+    }
+
+    function drawSelectionBox() {
+      if (!problemState.selectionBox) {
+        return;
+      }
+      const box = problemState.selectionBox;
+      problemCtx.save();
+      problemCtx.fillStyle = "rgba(23, 107, 135, 0.1)";
+      problemCtx.strokeStyle = "#176b87";
+      problemCtx.lineWidth = 2;
+      problemCtx.setLineDash([7, 5]);
+      problemCtx.fillRect(box.x, box.y, box.width, box.height);
+      problemCtx.strokeRect(box.x, box.y, box.width, box.height);
       problemCtx.restore();
     }
 
@@ -873,6 +1204,9 @@
 
       if (annotation.type === "text") {
         problemCtx.font = `700 ${annotation.fontSize}px Segoe UI, Arial, sans-serif`;
+        if (annotation.isPlaceholder) {
+          problemCtx.globalAlpha = 0.45;
+        }
         problemCtx.lineWidth = 5;
         problemCtx.strokeStyle = "rgba(255, 255, 255, 0.88)";
         problemCtx.strokeText(annotation.text, annotation.x, annotation.y);
@@ -882,7 +1216,7 @@
 
       problemCtx.restore();
 
-      if (annotation.type === "text" && index === problemState.selectedTextIndex) {
+      if (problemState.selectedAnnotationIndexes.includes(index)) {
         drawSelection(annotation);
       }
     }
@@ -897,38 +1231,215 @@
       if (problemState.draft) {
         drawAnnotation(problemState.draft, -1);
       }
+      drawSelectionBox();
+    }
+
+    function closeCanvasTextEditor(commit = true) {
+      const editor = problemElements.canvasTextEditor;
+      if (problemState.editingTextIndex === null) {
+        editor.hidden = true;
+        return;
+      }
+      const annotation = problemState.annotations[problemState.editingTextIndex];
+      if (commit && annotation) {
+        const value = editor.value;
+        annotation.text = value.trim() === "" ? "Текст" : value;
+        annotation.isPlaceholder = value.trim() === "";
+        problemElements.annotationText.value = value;
+        persistVisuals();
+        rememberAnnotationState();
+      }
+      problemState.editingTextIndex = null;
+      editor.hidden = true;
+      drawProblemCanvas();
+    }
+
+    function openCanvasTextEditor(index, point = null, selectAll = false) {
+      const annotation = problemState.annotations[index];
+      if (!annotation || annotation.type !== "text") {
+        return;
+      }
+      closeCanvasTextEditor(true);
+      selectAnnotation(index, problemState.tool === "select" ? "select" : "text");
+
+      const editor = problemElements.canvasTextEditor;
+      const bounds = textBounds(annotation);
+      const metrics = canvasRectMetrics();
+      editor.hidden = false;
+      editor.value = annotation.isPlaceholder ? "" : annotation.text;
+      editor.placeholder = "Текст";
+      editor.style.left = `${metrics.left + bounds.x * metrics.scaleX}px`;
+      editor.style.top = `${metrics.top + bounds.y * metrics.scaleY}px`;
+      editor.style.width = `${Math.max(bounds.width * metrics.scaleX, 96)}px`;
+      editor.style.height = `${Math.max(bounds.height * metrics.scaleY, 34)}px`;
+      editor.style.fontSize = `${Math.max(annotation.fontSize * metrics.scaleY, 16)}px`;
+      editor.style.color = annotation.color;
+      problemState.editingTextIndex = index;
+
+      if (typeof editor.focus === "function") {
+        editor.focus();
+      }
+
+      const valueLength = editor.value.length;
+      let caretPosition = valueLength;
+      if (point && valueLength > 0) {
+        const relativeX = Math.max(0, point.x - bounds.x);
+        caretPosition = Math.min(valueLength, Math.round((relativeX / Math.max(bounds.width, 1)) * valueLength));
+      }
+      if (typeof editor.setSelectionRange === "function") {
+        if (selectAll && valueLength > 0) {
+          editor.setSelectionRange(0, valueLength);
+        } else {
+          editor.setSelectionRange(caretPosition, caretPosition);
+        }
+      }
+    }
+
+    function selectedAnnotations() {
+      return problemState.selectedAnnotationIndexes
+        .map((index) => problemState.annotations[index])
+        .filter(Boolean);
+    }
+
+    function syncSelectedTextControls() {
+      const isSingleText = problemState.selectedAnnotationIndexes.length === 1
+        && problemState.annotations[problemState.selectedAnnotationIndex]?.type === "text";
+      if (!isSingleText) {
+        problemState.selectedTextIndex = null;
+        return;
+      }
+      const annotation = problemState.annotations[problemState.selectedAnnotationIndex];
+      problemState.selectedTextIndex = problemState.selectedAnnotationIndex;
+      problemElements.annotationText.value = annotation.text;
+      problemElements.strokeColor.value = annotation.color;
+      problemElements.fontSize.value = annotation.fontSize;
+    }
+
+    function selectAnnotation(index, tool = "select", additive = false) {
+      if (additive) {
+        const selected = new Set(problemState.selectedAnnotationIndexes);
+        if (selected.has(index)) {
+          selected.delete(index);
+        } else {
+          selected.add(index);
+        }
+        problemState.selectedAnnotationIndexes = [...selected].sort((a, b) => a - b);
+        problemState.selectedAnnotationIndex = problemState.selectedAnnotationIndexes.length > 0
+          ? problemState.selectedAnnotationIndexes[problemState.selectedAnnotationIndexes.length - 1]
+          : null;
+        syncSelectedTextControls();
+        setTool(tool, true);
+        return;
+      }
+
+      problemState.selectedAnnotationIndex = index;
+      problemState.selectedAnnotationIndexes = [index];
+      const annotation = problemState.annotations[index];
+      if (annotation) {
+        if (annotation.type === "text") {
+          problemState.selectedTextIndex = index;
+          problemElements.annotationText.value = annotation.text;
+          problemElements.strokeColor.value = annotation.color;
+          problemElements.fontSize.value = annotation.fontSize;
+        } else {
+          problemState.selectedTextIndex = null;
+          problemElements.strokeColor.value = annotation.color;
+          if (annotation.strokeWidth) {
+            problemElements.strokeWidth.value = annotation.strokeWidth;
+          }
+        }
+      }
+      setTool(tool, true);
     }
 
     function selectTextAnnotation(index) {
-      problemState.selectedTextIndex = index;
-      const annotation = problemState.annotations[index];
-      if (annotation) {
-        problemElements.annotationText.value = annotation.text;
-        problemElements.strokeColor.value = annotation.color;
-        problemElements.fontSize.value = annotation.fontSize;
-      }
-      setTool("text", true);
+      selectAnnotation(index, "text");
+    }
+
+    function clearAnnotationSelection() {
+      problemState.selectedAnnotationIndex = null;
+      problemState.selectedAnnotationIndexes = [];
+      problemState.selectedTextIndex = null;
+      problemState.editingTextIndex = null;
+      problemElements.canvasTextEditor.hidden = true;
+      problemState.movingAnnotation = false;
+      problemState.resizingAnnotation = false;
+      problemState.selectingBox = false;
+      problemState.selectionBox = null;
+      problemState.resizeHandle = null;
+      problemState.lastPoint = null;
+      problemState.originalAnnotation = null;
     }
 
     function persistVisuals() {
       activeStage().annotations = cloneAnnotations();
     }
 
+    function moveAnnotation(annotation, dx, dy) {
+      if (annotation.type === "path") {
+        annotation.points = annotation.points.map((point) => ({
+          x: point.x + dx,
+          y: point.y + dy
+        }));
+        return;
+      }
+      annotation.x += dx;
+      annotation.y += dy;
+    }
+
+    function resizeAnnotation(annotation, handle, point, original) {
+      if (annotation.type !== "rectangle" && annotation.type !== "oval") {
+        return;
+      }
+      const rect = normalizeRect(original);
+      let left = rect.x;
+      let top = rect.y;
+      let right = rect.x + rect.width;
+      let bottom = rect.y + rect.height;
+
+      if (handle.includes("w")) {
+        left = point.x;
+      }
+      if (handle.includes("e")) {
+        right = point.x;
+      }
+      if (handle.includes("n")) {
+        top = point.y;
+      }
+      if (handle.includes("s")) {
+        bottom = point.y;
+      }
+
+      const minSize = 12;
+      if (Math.abs(right - left) < minSize || Math.abs(bottom - top) < minSize) {
+        return;
+      }
+
+      annotation.x = left;
+      annotation.y = top;
+      annotation.width = right - left;
+      annotation.height = bottom - top;
+    }
+
     function addTextAnnotation(point) {
       const style = currentDrawingStyle();
-      const text = problemElements.annotationText.value.trim() || "Текст";
+      const fieldText = problemElements.annotationText.value;
+      const isPlaceholder = fieldText.trim() === "";
       problemState.annotations.push({
         type: "text",
         x: point.x,
         y: point.y,
-        text,
+        text: isPlaceholder ? "Текст" : fieldText,
+        isPlaceholder,
         color: style.color,
         fontSize: style.fontSize,
         strokeWidth: style.width
       });
-      selectTextAnnotation(problemState.annotations.length - 1);
+      const index = problemState.annotations.length - 1;
+      selectTextAnnotation(index);
       persistVisuals();
       drawProblemCanvas();
+      openCanvasTextEditor(index, point, true);
     }
 
     function updateSelectedText() {
@@ -937,7 +1448,9 @@
       if (!annotation || annotation.type !== "text") {
         return;
       }
-      annotation.text = problemElements.annotationText.value.trim() || "Текст";
+      const value = problemElements.annotationText.value;
+      annotation.text = value.trim() === "" ? "Текст" : value;
+      annotation.isPlaceholder = value.trim() === "";
       annotation.color = problemElements.strokeColor.value;
       annotation.fontSize = Number(problemElements.fontSize.value);
       persistVisuals();
@@ -947,24 +1460,61 @@
     function startDrawing(event) {
       event.preventDefault();
       const point = canvasPoint(event);
+      problemState.lastCanvasPoint = point;
+      problemState.mouseInCanvas = true;
+      if (problemState.editingTextIndex !== null) {
+        closeCanvasTextEditor(true);
+      }
+      if (problemState.tool === "select") {
+        const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
+        const handle = findResizeHandleAt(point);
+        if (handle && !additiveSelection) {
+          problemState.resizingAnnotation = true;
+          problemState.resizeHandle = handle;
+          problemState.originalAnnotation = cloneAnnotations([problemState.annotations[problemState.selectedAnnotationIndex]])[0];
+          problemElements.canvas.setPointerCapture(event.pointerId);
+          return;
+        }
+
+        const hitIndex = findAnnotationAt(point);
+        if (hitIndex >= 0) {
+          if (additiveSelection) {
+            selectAnnotation(hitIndex, "select", true);
+            drawProblemCanvas();
+            return;
+          }
+          if (!problemState.selectedAnnotationIndexes.includes(hitIndex)) {
+            selectAnnotation(hitIndex, "select");
+          }
+          problemState.movingAnnotation = true;
+          problemState.lastPoint = point;
+          problemElements.canvas.setPointerCapture(event.pointerId);
+          return;
+        }
+
+        if (!additiveSelection) {
+          clearAnnotationSelection();
+        }
+        problemState.selectingBox = true;
+        problemState.selectionBoxAdditive = additiveSelection;
+        problemState.startPoint = point;
+        problemState.selectionBox = { x: point.x, y: point.y, width: 0, height: 0 };
+        problemElements.canvas.setPointerCapture(event.pointerId);
+        drawProblemCanvas();
+        return;
+      }
+
       if (problemState.tool === "text") {
         const hitIndex = findTextAt(point);
         if (hitIndex >= 0) {
-          const annotation = problemState.annotations[hitIndex];
-          selectTextAnnotation(hitIndex);
-          problemState.draggingText = true;
-          problemState.dragOffset = {
-            x: point.x - annotation.x,
-            y: point.y - annotation.y
-          };
-          problemElements.canvas.setPointerCapture(event.pointerId);
+          openCanvasTextEditor(hitIndex, point);
           return;
         }
         addTextAnnotation(point);
         return;
       }
 
-      problemState.selectedTextIndex = null;
+      clearAnnotationSelection();
       problemState.isDrawing = true;
       problemState.startPoint = point;
       problemState.currentPath = [point];
@@ -991,6 +1541,13 @@
     }
 
     function continueDrawing(event) {
+      const currentPoint = canvasPoint(event);
+      problemState.lastCanvasPoint = currentPoint;
+      problemState.mouseInCanvas = true;
+      if (!problemState.draggingText && !problemState.movingAnnotation && !problemState.resizingAnnotation && !problemState.isDrawing) {
+        updateCanvasCursor(event);
+      }
+
       if (problemState.draggingText) {
         event.preventDefault();
         const point = canvasPoint(event);
@@ -1003,11 +1560,42 @@
         return;
       }
 
+      if (problemState.movingAnnotation) {
+        event.preventDefault();
+        const point = canvasPoint(event);
+        if (problemState.lastPoint) {
+          const dx = point.x - problemState.lastPoint.x;
+          const dy = point.y - problemState.lastPoint.y;
+          selectedAnnotations().forEach((annotation) => moveAnnotation(annotation, dx, dy));
+          problemState.lastPoint = point;
+          drawProblemCanvas();
+        }
+        return;
+      }
+
+      if (problemState.resizingAnnotation) {
+        event.preventDefault();
+        const point = canvasPoint(event);
+        const annotation = problemState.annotations[problemState.selectedAnnotationIndex];
+        if (annotation && problemState.originalAnnotation) {
+          resizeAnnotation(annotation, problemState.resizeHandle, point, problemState.originalAnnotation);
+          drawProblemCanvas();
+        }
+        return;
+      }
+
+      if (problemState.selectingBox) {
+        event.preventDefault();
+        problemState.selectionBox = boundsFromPoints(problemState.startPoint, currentPoint);
+        drawProblemCanvas();
+        return;
+      }
+
       if (!problemState.isDrawing) {
         return;
       }
       event.preventDefault();
-      const point = canvasPoint(event);
+      const point = currentPoint;
       const style = currentDrawingStyle();
       if (problemState.tool === "pen") {
         problemState.currentPath.push(point);
@@ -1040,6 +1628,42 @@
         return;
       }
 
+      if (problemState.selectingBox) {
+        event.preventDefault();
+        const box = problemState.selectionBox;
+        const selected = box && box.width > 4 && box.height > 4
+          ? problemState.annotations
+              .map((annotation, index) => ({ annotation, index }))
+              .filter(({ annotation }) => boundsIntersect(annotationBounds(annotation), box))
+              .map(({ index }) => index)
+          : [];
+        const nextSelection = new Set(problemState.selectionBoxAdditive ? problemState.selectedAnnotationIndexes : []);
+        selected.forEach((index) => nextSelection.add(index));
+        problemState.selectedAnnotationIndexes = [...nextSelection].sort((a, b) => a - b);
+        problemState.selectedAnnotationIndex = problemState.selectedAnnotationIndexes.length > 0
+          ? problemState.selectedAnnotationIndexes[problemState.selectedAnnotationIndexes.length - 1]
+          : null;
+        syncSelectedTextControls();
+        problemState.selectingBox = false;
+        problemState.selectionBox = null;
+        problemState.selectionBoxAdditive = false;
+        drawProblemCanvas();
+        return;
+      }
+
+      if (problemState.movingAnnotation || problemState.resizingAnnotation) {
+        event.preventDefault();
+        problemState.movingAnnotation = false;
+        problemState.resizingAnnotation = false;
+        problemState.resizeHandle = null;
+        problemState.lastPoint = null;
+        problemState.originalAnnotation = null;
+        persistVisuals();
+        rememberAnnotationState();
+        drawProblemCanvas();
+        return;
+      }
+
       if (!problemState.isDrawing) {
         return;
       }
@@ -1057,6 +1681,97 @@
         problemState.annotations.push(draft);
       }
       persistVisuals();
+      rememberAnnotationState();
+      drawProblemCanvas();
+    }
+
+    function copySelectedAnnotations() {
+      const selected = selectedAnnotations();
+      if (selected.length === 0) {
+        return;
+      }
+      problemState.clipboard = {
+        annotations: cloneAnnotations(selected),
+        bounds: groupBounds(selected)
+      };
+    }
+
+    function offsetAnnotation(annotation, dx, dy) {
+      const cloned = cloneAnnotations([annotation])[0];
+      moveAnnotation(cloned, dx, dy);
+      return cloned;
+    }
+
+    function pasteClipboard(mode = "paste") {
+      if (!problemState.clipboard || problemState.clipboard.annotations.length === 0) {
+        return;
+      }
+
+      const copied = cloneAnnotations(problemState.clipboard.annotations);
+      const copiedBounds = problemState.clipboard.bounds;
+      let target = null;
+      const selected = selectedAnnotations();
+      if (selected.length > 0) {
+        const selectedBounds = groupBounds(selected);
+        target = { x: selectedBounds.x + 24, y: selectedBounds.y + 24 };
+      } else if (problemState.mouseInCanvas && problemState.lastCanvasPoint) {
+        target = { x: problemState.lastCanvasPoint.x, y: problemState.lastCanvasPoint.y };
+      } else {
+        target = {
+          x: (problemElements.canvas.width - copiedBounds.width) / 2,
+          y: (problemElements.canvas.height - copiedBounds.height) / 2
+        };
+      }
+
+      const dx = mode === "duplicate" ? 24 : target.x - copiedBounds.x;
+      const dy = mode === "duplicate" ? 24 : target.y - copiedBounds.y;
+      const firstNewIndex = problemState.annotations.length;
+      copied.forEach((annotation) => {
+        problemState.annotations.push(offsetAnnotation(annotation, dx, dy));
+      });
+      problemState.selectedAnnotationIndexes = copied.map((_, index) => firstNewIndex + index);
+      problemState.selectedAnnotationIndex = problemState.selectedAnnotationIndexes.length > 0
+        ? problemState.selectedAnnotationIndexes[problemState.selectedAnnotationIndexes.length - 1]
+        : null;
+      syncSelectedTextControls();
+      persistVisuals();
+      rememberAnnotationState();
+      setTool("select", true);
+      drawProblemCanvas();
+    }
+
+    function duplicateSelectedAnnotations() {
+      copySelectedAnnotations();
+      pasteClipboard("duplicate");
+    }
+
+    function deleteSelectedAnnotation() {
+      const indexes = [...problemState.selectedAnnotationIndexes].sort((a, b) => b - a);
+      if (indexes.length === 0) {
+        return;
+      }
+      indexes.forEach((index) => {
+        problemState.annotations.splice(index, 1);
+      });
+      clearAnnotationSelection();
+      persistVisuals();
+      rememberAnnotationState();
+      drawProblemCanvas();
+    }
+
+    function transferPreviousAnnotations() {
+      if (problemState.activeStageIndex === 0) {
+        return;
+      }
+      persistActiveStage();
+      const previousStage = problemState.stages[problemState.activeStageIndex - 1];
+      if (problemState.annotations.length > 0 && !confirm("Заменить текущие рисунки рисунками предыдущего этапа?")) {
+        return;
+      }
+      problemState.annotations = cloneAnnotations(previousStage.annotations);
+      clearAnnotationSelection();
+      persistVisuals();
+      rememberAnnotationState();
       drawProblemCanvas();
     }
 
@@ -1068,7 +1783,26 @@
     problemElements.canvas.addEventListener("pointermove", continueDrawing);
     problemElements.canvas.addEventListener("pointerup", finishDrawing);
     problemElements.canvas.addEventListener("pointercancel", finishDrawing);
+    problemElements.canvas.addEventListener("dblclick", (event) => {
+      if (problemState.tool !== "select") {
+        return;
+      }
+      const point = canvasPoint(event);
+      const textIndex = findTextAt(point);
+      if (textIndex < 0) {
+        return;
+      }
+      event.preventDefault();
+      openCanvasTextEditor(textIndex, point);
+    });
     problemElements.canvas.addEventListener("pointerleave", finishDrawing);
+    problemElements.canvas.addEventListener("pointerenter", () => {
+      problemState.mouseInCanvas = true;
+    });
+    problemElements.canvas.addEventListener("pointerleave", () => {
+      problemState.mouseInCanvas = false;
+      setBaseCanvasCursor();
+    });
 
     problemElements.imageUpload.addEventListener("change", () => {
       const file = problemElements.imageUpload.files[0];
@@ -1097,6 +1831,7 @@
 
     problemElements.addStage.addEventListener("click", addStage);
     problemElements.saveStage.addEventListener("click", saveStage);
+    problemElements.transferPrevious.addEventListener("click", transferPreviousAnnotations);
 
     problemElements.stageTitle.addEventListener("input", () => {
       activeStage().title = problemElements.stageTitle.value.trim() || `Этап ${problemState.activeStageIndex + 1}`;
@@ -1124,18 +1859,74 @@
       }
     });
 
+    document.addEventListener("keydown", (event) => {
+      if (isTypingTarget(event.target) && event.target !== problemElements.canvasTextEditor) {
+        return;
+      }
+
+      if (event.target === problemElements.canvasTextEditor) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          closeCanvasTextEditor(true);
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeCanvasTextEditor(true);
+        }
+        return;
+      }
+
+      if (event.key === "Delete" || event.key === "Backspace") {
+        event.preventDefault();
+        deleteSelectedAnnotation();
+        return;
+      }
+      const modifierPressed = event.ctrlKey || event.metaKey;
+      if (modifierPressed && event.code === "KeyA") {
+        event.preventDefault();
+        selectAllAnnotations();
+        return;
+      }
+      if (modifierPressed && event.code === "KeyC") {
+        event.preventDefault();
+        copySelectedAnnotations();
+        return;
+      }
+      if (modifierPressed && event.code === "KeyV") {
+        event.preventDefault();
+        pasteClipboard("paste");
+        return;
+      }
+      if (modifierPressed && event.code === "KeyD") {
+        event.preventDefault();
+        duplicateSelectedAnnotations();
+        return;
+      }
+      if (modifierPressed && event.code === "KeyZ" && !event.shiftKey) {
+        event.preventDefault();
+        undoAnnotations();
+        return;
+      }
+      if (modifierPressed && (event.code === "KeyY" || (event.code === "KeyZ" && event.shiftKey))) {
+        event.preventDefault();
+        redoAnnotations();
+      }
+    });
+
     problemElements.undo.addEventListener("click", () => {
-      problemState.annotations.pop();
-      problemState.selectedTextIndex = null;
-      persistVisuals();
-      drawProblemCanvas();
+      undoAnnotations();
+    });
+
+    problemElements.deleteSelected.addEventListener("click", () => {
+      deleteSelectedAnnotation();
     });
 
     problemElements.clear.addEventListener("click", () => {
       if (problemState.annotations.length === 0 || confirm("Очистить все пометки на текущем рисунке?")) {
         problemState.annotations = [];
-        problemState.selectedTextIndex = null;
+        clearAnnotationSelection();
         persistVisuals();
+        rememberAnnotationState();
         drawProblemCanvas();
       }
     });
@@ -1147,15 +1938,61 @@
       link.click();
     });
 
+    problemElements.canvasTextEditor.addEventListener("input", () => {
+      const annotation = problemState.annotations[problemState.editingTextIndex];
+      if (!annotation) {
+        return;
+      }
+      const value = problemElements.canvasTextEditor.value;
+      annotation.text = value.trim() === "" ? "Текст" : value;
+      annotation.isPlaceholder = value.trim() === "";
+      problemElements.annotationText.value = value;
+      persistVisuals();
+      drawProblemCanvas();
+    });
+
+    problemElements.canvasTextEditor.addEventListener("blur", () => {
+      closeCanvasTextEditor(true);
+    });
+
     problemElements.annotationText.addEventListener("input", updateSelectedText);
-    problemElements.strokeColor.addEventListener("input", () => {
+    problemElements.annotationText.addEventListener("change", () => {
       if (problemState.selectedTextIndex !== null) {
-        updateSelectedText();
+        rememberAnnotationState();
+      }
+    });
+    problemElements.strokeColor.addEventListener("input", () => {
+      const selected = selectedAnnotations();
+      if (selected.length > 0) {
+        selected.forEach((annotation) => {
+          annotation.color = problemElements.strokeColor.value;
+        });
+        persistVisuals();
+        drawProblemCanvas();
         return;
       }
       drawProblemCanvas();
     });
-    problemElements.strokeWidth.addEventListener("input", drawProblemCanvas);
+    problemElements.strokeColor.addEventListener("change", () => {
+      if (selectedAnnotations().length > 0) {
+        rememberAnnotationState();
+      }
+    });
+    problemElements.strokeWidth.addEventListener("input", () => {
+      const selected = selectedAnnotations().filter((annotation) => annotation.type !== "text");
+      if (selected.length > 0) {
+        selected.forEach((annotation) => {
+          annotation.strokeWidth = Number(problemElements.strokeWidth.value);
+        });
+        persistVisuals();
+      }
+      drawProblemCanvas();
+    });
+    problemElements.strokeWidth.addEventListener("change", () => {
+      if (selectedAnnotations().some((annotation) => annotation.type !== "text")) {
+        rememberAnnotationState();
+      }
+    });
     problemElements.fontSize.addEventListener("input", () => {
       if (problemState.selectedTextIndex !== null) {
         updateSelectedText();
@@ -1163,5 +2000,11 @@
       }
       drawProblemCanvas();
     });
+    problemElements.fontSize.addEventListener("change", () => {
+      if (problemState.selectedTextIndex !== null) {
+        rememberAnnotationState();
+      }
+    });
 
+    setBaseCanvasCursor();
     loadActiveStageIntoForm();
