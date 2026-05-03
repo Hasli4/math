@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Математический тренажер</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <h1>Математический тренажер</h1>
+        <p class="subtitle">Дроби: сложение, вычитание, умножение и деление.</p>
+      </div>
+      <nav class="mode-tabs" aria-label="Разделы тренажера">
+        <button class="active" type="button" data-view="fractions">Дроби</button>
+        <button type="button" data-view="problems">Задачи</button>
+        <button type="button" disabled>Уравнения</button>
+        <button type="button" disabled>Информатика</button>
+      </nav>
+    </header>
+
+    <section class="view-section active" id="fractionsView" data-view-section="fractions">
+      <div class="workspace" aria-label="Рабочая область дробей">
+      <form class="panel builder" id="fractionForm">
+        <div>
+          <h2 class="panel-title">Конструктор примера</h2>
+          <p class="panel-note">Целая часть · числитель · знаменатель.</p>
+        </div>
+
+        <div class="fraction-row">
+          <div class="row-label">
+            <span>Первая дробь</span>
+            <span id="leftReadable" class="muted"></span>
+          </div>
+          <div class="fraction-editor">
+            <div class="number-box">
+              <label for="leftWhole">Целая</label>
+              <input id="leftWhole" name="leftWhole" type="number" step="1" value="0" inputmode="numeric">
+            </div>
+            <div class="stacked-fraction-input" aria-label="Дробная часть первой дроби">
+              <input id="leftNum" name="leftNum" type="number" step="1" min="0" value="1" aria-label="Числитель первой дроби" inputmode="numeric">
+              <span class="fraction-line" aria-hidden="true"></span>
+              <input id="leftDen" name="leftDen" type="number" step="1" value="2" aria-label="Знаменатель первой дроби" inputmode="numeric">
+            </div>
+            <div class="fraction-preview" aria-hidden="true">
+              <div id="leftPie" class="pie"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="fraction-row">
+          <div class="row-label">
+            <span>Действие</span>
+            <span id="operationReadable" class="muted">сложение</span>
+          </div>
+          <div class="operation-strip" role="group" aria-label="Выбор операции">
+            <button class="active" type="button" data-operation="add" title="Сложить">+</button>
+            <button type="button" data-operation="subtract" title="Вычесть">-</button>
+            <button type="button" data-operation="multiply" title="Умножить">×</button>
+            <button type="button" data-operation="divide" title="Разделить">÷</button>
+          </div>
+        </div>
+
+        <div class="fraction-row">
+          <div class="row-label">
+            <span>Вторая дробь</span>
+            <span id="rightReadable" class="muted"></span>
+          </div>
+          <div class="fraction-editor">
+            <div class="number-box">
+              <label for="rightWhole">Целая</label>
+              <input id="rightWhole" name="rightWhole" type="number" step="1" value="0" inputmode="numeric">
+            </div>
+            <div class="stacked-fraction-input" aria-label="Дробная часть второй дроби">
+              <input id="rightNum" name="rightNum" type="number" step="1" min="0" value="1" aria-label="Числитель второй дроби" inputmode="numeric">
+              <span class="fraction-line" aria-hidden="true"></span>
+              <input id="rightDen" name="rightDen" type="number" step="1" value="3" aria-label="Знаменатель второй дроби" inputmode="numeric">
+            </div>
+            <div class="fraction-preview" aria-hidden="true">
+              <div id="rightPie" class="pie"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="options" aria-label="Настройки решения">
+          <label class="toggle">
+            <span>Показывать сокращение дроби</span>
+            <input id="showReduction" type="checkbox" checked>
+          </label>
+          <label class="toggle">
+            <span>Выделять целую часть в ответе</span>
+            <input id="showMixed" type="checkbox" checked>
+          </label>
+        </div>
+
+        <div class="actions">
+          <button class="primary-btn" type="submit">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Решить пример
+          </button>
+          <button class="icon-btn" id="swapBtn" type="button" title="Поменять дроби местами" aria-label="Поменять дроби местами">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 7h11l-3-3M17 17H6l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="side-step-panel">
+          <span id="stepMeterBottom" class="step-meter">Шаги появятся после решения</span>
+          <div class="step-buttons">
+            <button class="ghost-btn" id="prevStepBottom" type="button" disabled>
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Назад
+            </button>
+            <button class="ghost-btn" id="nextStepBottom" type="button" disabled>
+              Далее
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <button class="ghost-btn" id="showAllBottom" type="button" disabled>Все шаги</button>
+          </div>
+        </div>
+      </form>
+
+      <section class="panel result-area" aria-live="polite">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">Пошаговое решение</h2>
+            <p class="panel-note">Открывайте этапы так, как удобно ученику.</p>
+          </div>
+        </div>
+
+        <div class="equation-stage">
+          <div id="equation" class="equation"></div>
+          <div class="step-controls">
+            <span id="stepMeter" class="step-meter">Шаги появятся после решения</span>
+            <div class="step-buttons">
+              <button class="ghost-btn" id="prevStep" type="button" disabled>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Назад
+              </button>
+              <button class="ghost-btn" id="nextStep" type="button" disabled>
+                Далее
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button class="ghost-btn" id="showAll" type="button" disabled>Все шаги</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="steps" class="steps-list">
+          <div class="empty-state">
+            <p>Введите две дроби и нажмите «Решить пример».</p>
+          </div>
+        </div>
+
+        <div class="teacher-notes">
+          <div class="note">
+            <strong>Сложение и вычитание</strong>
+            <span>НОК знаменателей, дополнительные множители, общий знаменатель.</span>
+          </div>
+          <div class="note">
+            <strong>Умножение и деление</strong>
+            <span>Сокращение крест-накрест, обратная дробь, произведение числителей и знаменателей.</span>
+          </div>
+          <div class="note">
+            <strong>Ответ</strong>
+            <span>Несократимый вид, неправильная дробь, смешанное число.</span>
+          </div>
+        </div>
+      </section>
+      </div>
+    </section>
+
+    <section class="view-section" id="problemsView" data-view-section="problems" hidden>
+      <div class="problem-workspace">
+        <aside class="panel stage-sidebar">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">Порядок решения</h2>
+              <p class="panel-note">Этапы сохраняют свой текст и рисунок.</p>
+            </div>
+          </div>
+
+          <div class="task-body">
+            <label class="field-group">
+              <span>Условие</span>
+              <textarea id="problemCondition" rows="7" placeholder="Например: найдите площадь закрашенной части фигуры..."></textarea>
+            </label>
+
+            <div class="stage-tabs-header">
+              <span>Этапы</span>
+              <button class="icon-btn add-stage-btn" id="addStage" type="button" title="Добавить этап" aria-label="Добавить этап">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </div>
+
+            <div id="stageTabs" class="stage-tabs" role="tablist" aria-label="Этапы решения"></div>
+          </div>
+        </aside>
+
+        <section class="problem-main">
+          <div class="panel image-upload-panel">
+            <label class="file-drop image-drop" for="imageUpload">
+              <input id="imageUpload" type="file" accept="image/*">
+              <span>
+                <strong>Загрузить картинку задачи</strong>
+                <small id="imageName">PNG, JPG или WEBP</small>
+              </span>
+            </label>
+          </div>
+
+          <section class="panel drawing-panel">
+            <div class="panel-header">
+              <div>
+                <h2 class="panel-title">Редактор рисунка</h2>
+                <p class="panel-note">Текст можно выбрать на холсте и изменить в поле «Подпись».</p>
+              </div>
+            </div>
+
+            <div class="drawing-toolbar" aria-label="Инструменты редактора">
+              <div class="tool-group" role="group" aria-label="Инструменты">
+                <button class="tool-btn active" type="button" data-tool="pen" title="Карандаш" aria-label="Карандаш">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20zM14 7l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <button class="tool-btn" type="button" data-tool="text" title="Текст" aria-label="Текст">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 6h16M12 6v12M8 18h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                </button>
+                <button class="tool-btn" type="button" data-tool="rectangle" title="Прямоугольник" aria-label="Прямоугольник">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="5" y="6" width="14" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
+                  </svg>
+                </button>
+                <button class="tool-btn" type="button" data-tool="oval" title="Овал" aria-label="Овал">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <ellipse cx="12" cy="12" rx="7" ry="5" fill="none" stroke="currentColor" stroke-width="2"/>
+                  </svg>
+                </button>
+              </div>
+
+              <label class="swatch-label">
+                <span>Цвет</span>
+                <input id="strokeColor" type="color" value="#d86f45">
+              </label>
+
+              <label class="range-label">
+                <span>Толщина</span>
+                <input id="strokeWidth" type="range" min="2" max="18" value="5">
+              </label>
+
+              <label class="range-label">
+                <span>Шрифт</span>
+                <input id="fontSize" type="range" min="18" max="56" value="28">
+              </label>
+
+              <label class="annotation-field">
+                <span>Подпись</span>
+                <input id="annotationText" class="annotation-input" type="text" value="Пояснение" aria-label="Текст подписи">
+              </label>
+
+              <div class="tool-group" role="group" aria-label="Действия">
+                <button class="tool-btn" id="undoAnnotation" type="button" title="Отменить" aria-label="Отменить">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M9 14l-4-4 4-4M5 10h9a5 5 0 0 1 0 10h-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <button class="tool-btn" id="clearAnnotations" type="button" title="Очистить рисунок" aria-label="Очистить рисунок">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 7h12M10 11v6M14 11v6M8 7l1-3h6l1 3M8 7v12h8V7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <button class="tool-btn" id="downloadCanvas" type="button" title="Скачать PNG" aria-label="Скачать PNG">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 4v10M8 10l4 4 4-4M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="canvas-shell">
+              <canvas id="problemCanvas" width="960" height="620"></canvas>
+            </div>
+          </section>
+
+          <section class="panel stage-detail-panel">
+            <div class="panel-header">
+              <div>
+                <h2 class="panel-title">Ход решения этапа</h2>
+                <p class="panel-note">Текст и подэтапы привязаны к активной вкладке.</p>
+              </div>
+              <button class="ghost-btn" id="saveStage" type="button">Сохранить этап</button>
+            </div>
+
+            <div class="stage-detail-body">
+              <label class="field-group">
+                <span>Название вкладки</span>
+                <input id="stageTitle" class="text-input" type="text" value="Этап 1">
+              </label>
+
+              <label class="field-group">
+                <span>Ход решения</span>
+                <textarea id="stageSolution" rows="6" placeholder="Запишите рассуждение для этого этапа."></textarea>
+              </label>
+
+              <div class="substep-editor">
+                <label class="field-group">
+                  <span>Подэтап</span>
+                  <input id="substepText" class="text-input" type="text" placeholder="Например: проведем высоту, подпишем данные...">
+                </label>
+                <button class="primary-btn" id="addSubstep" type="button">Сохранить подэтап</button>
+              </div>
+
+              <div id="substepsList" class="substeps-list"></div>
+            </div>
+          </section>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
