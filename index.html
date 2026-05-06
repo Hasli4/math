@@ -15,6 +15,7 @@
       </div>
       <nav class="mode-tabs" aria-label="Разделы тренажера">
         <button class="active" type="button" data-view="fractions">Дроби</button>
+        <button type="button" data-view="longDivision">Деление в столбик</button>
         <button type="button" data-view="problems">Задачи</button>
         <button type="button" disabled>Уравнения</button>
         <button type="button" disabled>Информатика</button>
@@ -180,6 +181,138 @@
           </div>
         </div>
       </section>
+      </div>
+    </section>
+
+    <section class="view-section" id="longDivisionView" data-view-section="longDivision" hidden>
+      <div class="workspace division-workspace" aria-label="Тренажер деления в столбик">
+        <form class="panel builder" id="longDivisionForm">
+          <div>
+            <h2 class="panel-title">Конструктор примера</h2>
+            <p class="panel-note">Только целые неотрицательные числа. Можно остановиться на остатке или продолжить деление после запятой.</p>
+          </div>
+
+          <div class="division-input-grid">
+            <label class="field-group compact-field">
+              <span>Делимое</span>
+              <input id="divisionDividend" class="text-input" type="text" inputmode="numeric" value="1572" placeholder="Например, 1572" aria-label="Делимое">
+            </label>
+
+            <label class="field-group compact-field">
+              <span>Делитель</span>
+              <input id="divisionDivisor" class="text-input" type="text" inputmode="numeric" value="12" placeholder="Например, 12" aria-label="Делитель">
+            </label>
+          </div>
+
+          <div class="options" aria-label="Настройки деления">
+            <label class="toggle">
+              <span>Если есть остаток, продолжать деление после запятой</span>
+              <input id="divisionContinueDecimals" type="checkbox" checked>
+            </label>
+
+            <label class="field-group compact-field inline-field">
+              <span>Знаков после запятой</span>
+              <input id="divisionPrecision" class="text-input" type="number" min="0" max="8" value="3" inputmode="numeric">
+            </label>
+          </div>
+
+          <div class="division-summary-card" aria-live="polite">
+            <div class="division-summary-row">
+              <span>Частное</span>
+              <strong id="divisionQuotientPreview">131</strong>
+            </div>
+            <div class="division-summary-row">
+              <span>Остаток</span>
+              <strong id="divisionRemainderPreview">0</strong>
+            </div>
+          </div>
+
+          <div class="actions single-action">
+            <button class="primary-btn" type="submit">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Разобрать деление
+            </button>
+          </div>
+
+          <div class="side-step-panel">
+            <span id="divisionStepMeterBottom" class="step-meter">Шаги появятся после решения</span>
+            <div class="step-buttons">
+              <button class="ghost-btn" id="divisionPrevStepBottom" type="button" disabled>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Назад
+              </button>
+              <button class="ghost-btn" id="divisionNextStepBottom" type="button" disabled>
+                Далее
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button class="ghost-btn" id="divisionShowAllBottom" type="button" disabled>Все шаги</button>
+            </div>
+          </div>
+        </form>
+
+        <section class="panel result-area" aria-live="polite">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">Пошаговое деление</h2>
+              <p class="panel-note">Показывайте каждый этап: неполное делимое, цифру частного, вычитание и снос следующей цифры.</p>
+            </div>
+          </div>
+
+          <div class="equation-stage division-equation-stage">
+            <div id="divisionEquation" class="equation division-equation"></div>
+            <div id="divisionBoard" class="division-board">
+              <div class="empty-state">
+                <p>Введите делимое и делитель, чтобы показать деление в столбик.</p>
+              </div>
+            </div>
+
+            <div class="step-controls">
+              <span id="divisionStepMeter" class="step-meter">Шаги появятся после решения</span>
+              <div class="step-buttons">
+                <button class="ghost-btn" id="divisionPrevStep" type="button" disabled>
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  Назад
+                </button>
+                <button class="ghost-btn" id="divisionNextStep" type="button" disabled>
+                  Далее
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <button class="ghost-btn" id="divisionShowAll" type="button" disabled>Все шаги</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="divisionSteps" class="steps-list">
+            <div class="empty-state">
+              <p>Введите делимое и делитель, а затем нажмите «Разобрать деление».</p>
+            </div>
+          </div>
+
+          <div class="teacher-notes">
+            <div class="note">
+              <strong>Неполное делимое</strong>
+              <span>Берите слева минимальное число, которое уже можно делить на делитель.</span>
+            </div>
+            <div class="note">
+              <strong>Цифра частного</strong>
+              <span>На каждом шаге подбираем максимальную цифру, чтобы произведение не превысило текущий фрагмент.</span>
+            </div>
+            <div class="note">
+              <strong>Остаток или десятичная дробь</strong>
+              <span>Если число не делится нацело, можно остановиться на остатке или дописать нули после запятой.</span>
+            </div>
+          </div>
+        </section>
       </div>
     </section>
 

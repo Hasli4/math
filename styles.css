@@ -339,6 +339,46 @@
       padding-top: 2px;
     }
 
+    .division-input-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .compact-field {
+      min-width: 0;
+    }
+
+    .inline-field {
+      max-width: 220px;
+    }
+
+    .division-summary-card {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-2);
+    }
+
+    .division-summary-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.95rem;
+    }
+
+    .division-summary-row strong {
+      font-size: 1.08rem;
+      color: var(--primary-dark);
+    }
+
+    .single-action {
+      grid-template-columns: 1fr;
+    }
+
     .toggle {
       display: flex;
       align-items: center;
@@ -384,6 +424,120 @@
       background: #f8fbfc;
       border: 1px solid var(--line);
       overflow-x: auto;
+    }
+
+    .division-equation {
+      min-height: 78px;
+      font-size: 1.24rem;
+      font-weight: 800;
+    }
+
+    .division-board {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fcfefe;
+      overflow: auto;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-start;
+    }
+
+    .division-board-pre {
+      margin: 0;
+      min-height: 240px;
+      font: 700 1.04rem/1.58 "Cascadia Mono", Consolas, "Courier New", monospace;
+      color: var(--ink);
+      white-space: pre;
+    }
+
+    .division-russian-board {
+      display: inline-grid;
+      gap: 8px;
+      min-width: 0;
+      width: max-content;
+      max-width: 100%;
+    }
+
+    .division-russian-caption {
+      color: var(--muted);
+      font-size: 0.92rem;
+      font-weight: 800;
+    }
+
+    .division-russian-grid {
+      display: grid;
+      grid-template-columns: max-content 1px max-content;
+      align-items: start;
+      gap: 8px;
+      width: max-content;
+    }
+
+    .division-russian-left {
+      min-width: max-content;
+      display: grid;
+      gap: 1px;
+      font: 700 1.02rem/1.6 "Cascadia Mono", Consolas, "Courier New", monospace;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink);
+    }
+
+    .division-russian-row {
+      width: max-content;
+      min-height: 1.2em;
+      white-space: nowrap;
+    }
+
+    .division-russian-row--dividend {
+      color: var(--primary-dark);
+    }
+
+    .division-russian-row--product {
+      border-bottom: 2px solid currentColor;
+    }
+
+    .division-russian-row--remainder {
+      color: var(--primary-dark);
+    }
+
+    .division-russian-divider {
+      width: 1px;
+      align-self: stretch;
+      background: rgba(23, 33, 43, 0.24);
+    }
+
+    .division-russian-right {
+      display: grid;
+      gap: 3px;
+      align-content: start;
+      justify-items: start;
+      padding-top: 0.15rem;
+    }
+
+    .division-russian-side {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .division-russian-number {
+      font: 800 1.02rem/1.2 "Cascadia Mono", Consolas, "Courier New", monospace;
+      font-variant-numeric: tabular-nums;
+      color: var(--accent);
+    }
+
+    .division-russian-label {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .division-math {
+      display: grid;
+      gap: 6px;
+      font-size: 1.02rem;
+      line-height: 1.45;
+      white-space: normal;
     }
 
     .math-fraction {
@@ -978,6 +1132,14 @@
         grid-template-columns: 76px minmax(100px, 1fr);
       }
 
+      .division-input-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .inline-field {
+        max-width: none;
+      }
+
       .fraction-preview {
         grid-column: 1 / -1;
       }
@@ -988,6 +1150,10 @@
 
       .step-card {
         grid-template-columns: 1fr;
+      }
+
+      .division-board-pre {
+        font-size: 0.96rem;
       }
 
       .drawing-toolbar {
