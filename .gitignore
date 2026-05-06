@@ -2,4 +2,6 @@ node_modules/
 playwright-report/
 test-results/
 dist/
-
+package-lock.json
+playwright.config.js
+tests/
