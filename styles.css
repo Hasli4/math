@@ -122,10 +122,19 @@
       align-items: start;
     }
 
+    .problem-workspace.problem-sidebar-collapsed {
+      grid-template-columns: 74px minmax(0, 1fr);
+    }
+
+    .problem-workspace.problem-focus-mode {
+      grid-template-columns: 1fr;
+    }
+
     .problem-main {
       display: grid;
       gap: 18px;
       min-width: 0;
+      align-content: start;
     }
 
     .panel {
@@ -150,6 +159,21 @@
       justify-content: flex-end;
       gap: 8px;
       flex-wrap: wrap;
+    }
+
+    .panel-heading {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .panel-compact-title {
+      display: none;
+      color: var(--primary-dark);
+      font-size: 0.76rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
     }
 
     .panel-title {
@@ -713,6 +737,23 @@
       overflow: hidden;
     }
 
+    .panel-toggle-btn {
+      width: 40px;
+      min-height: 40px;
+      padding: 0;
+      flex: 0 0 auto;
+    }
+
+    .focus-toggle-btn {
+      min-height: 40px;
+      padding: 0 12px;
+      white-space: nowrap;
+    }
+
+    .compact-panel-header {
+      padding-bottom: 14px;
+    }
+
     .task-body {
       padding: 18px;
       display: grid;
@@ -796,7 +837,11 @@
     }
 
     .image-upload-panel {
-      padding: 14px;
+      overflow: hidden;
+    }
+
+    .image-upload-body {
+      padding: 0 14px 14px;
     }
 
     .image-drop {
@@ -804,6 +849,49 @@
       margin: 0 auto;
       justify-content: center;
       text-align: center;
+    }
+
+    .stage-sidebar.panel-collapsed .task-body,
+    .image-upload-panel.panel-collapsed .image-upload-body,
+    .drawing-panel.panel-collapsed .drawing-toolbar-wrap {
+      display: none;
+    }
+
+    .stage-sidebar.panel-collapsed {
+      min-height: 360px;
+    }
+
+    .stage-sidebar.panel-collapsed .panel-header {
+      min-height: 100%;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 10px;
+      border-bottom: 0;
+    }
+
+    .stage-sidebar.panel-collapsed .panel-header-actions {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .stage-sidebar.panel-collapsed .panel-title,
+    .stage-sidebar.panel-collapsed .panel-note {
+      display: none;
+    }
+
+    .stage-sidebar.panel-collapsed .panel-compact-title {
+      display: block;
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      letter-spacing: 0.14em;
+    }
+
+    .stage-sidebar.panel-collapsed .panel-heading {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .stage-tabs-header {
@@ -944,6 +1032,16 @@
       background: rgba(248, 251, 252, 0.78);
     }
 
+    .drawing-panel {
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr);
+      min-height: clamp(420px, 62vh, 820px);
+    }
+
+    .drawing-toolbar-wrap {
+      min-width: 0;
+    }
+
     .tool-group {
       display: inline-flex;
       align-items: center;
@@ -1000,6 +1098,10 @@
       position: relative;
       padding: 18px;
       overflow: auto;
+      min-height: clamp(340px, 54vh, 700px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
       background:
         linear-gradient(90deg, rgba(23, 33, 43, 0.05) 1px, transparent 1px),
         linear-gradient(0deg, rgba(23, 33, 43, 0.05) 1px, transparent 1px),
@@ -1007,12 +1109,17 @@
       background-size: 22px 22px, 22px 22px, auto;
     }
 
+    .canvas-shell:focus-visible {
+      outline: 2px solid rgba(23, 107, 135, 0.45);
+      outline-offset: 0;
+    }
+
     #problemCanvas {
-      width: 100%;
-      max-width: 960px;
-      aspect-ratio: 48 / 31;
+      width: min(100%, 960px);
+      max-width: 100%;
+      height: auto;
       display: block;
-      margin: 0 auto;
+      margin: 0;
       border: 1px solid rgba(23, 33, 43, 0.22);
       border-radius: 7px;
       background: #fff;
@@ -1084,6 +1191,35 @@
       line-height: 1.42;
     }
 
+    body.problem-focus-active {
+      overflow: hidden;
+    }
+
+    .problem-focus-mode .stage-sidebar,
+    .problem-focus-mode .image-upload-panel,
+    .problem-focus-mode .stage-detail-panel {
+      display: none;
+    }
+
+    .problem-focus-mode .drawing-panel {
+      position: fixed;
+      inset: 12px;
+      z-index: 30;
+      min-height: calc(100vh - 24px);
+      height: calc(100vh - 24px);
+      margin: 0;
+      box-shadow: 0 24px 48px rgba(23, 33, 43, 0.22);
+    }
+
+    .problem-focus-mode .drawing-panel .panel-header {
+      background: rgba(255, 255, 255, 0.96);
+    }
+
+    .problem-focus-mode .canvas-shell {
+      min-height: 0;
+      height: 100%;
+    }
+
     @media (max-width: 940px) {
       .workspace,
       .problem-workspace {
@@ -1096,6 +1232,32 @@
 
       .teacher-notes {
         grid-template-columns: 1fr;
+      }
+
+      .problem-workspace.problem-sidebar-collapsed {
+        grid-template-columns: 1fr;
+      }
+
+      .stage-sidebar.panel-collapsed {
+        min-height: auto;
+      }
+
+      .stage-sidebar.panel-collapsed .panel-header {
+        min-height: auto;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid rgba(207, 219, 226, 0.74);
+      }
+
+      .stage-sidebar.panel-collapsed .panel-heading {
+        flex: 0 1 auto;
+      }
+
+      .stage-sidebar.panel-collapsed .panel-compact-title {
+        writing-mode: initial;
+        transform: none;
+        letter-spacing: 0.08em;
       }
     }
 
@@ -1160,6 +1322,10 @@
         align-items: stretch;
       }
 
+      .focus-toggle-btn {
+        width: 100%;
+      }
+
       .annotation-input,
       .range-label input {
         width: 100%;
@@ -1188,5 +1354,11 @@
       .step-index {
         width: 34px;
         height: 34px;
+      }
+
+      .problem-focus-mode .drawing-panel {
+        inset: 8px;
+        min-height: calc(100vh - 16px);
+        height: calc(100vh - 16px);
       }
     }

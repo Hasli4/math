@@ -317,16 +317,24 @@
     </section>
 
     <section class="view-section" id="problemsView" data-view-section="problems" hidden>
-      <div class="problem-workspace">
-        <aside class="panel stage-sidebar">
+      <div class="problem-workspace" id="problemWorkspace">
+        <aside class="panel stage-sidebar" id="problemSidebar">
           <div class="panel-header">
-            <div>
+            <div class="panel-heading">
               <h2 class="panel-title">Порядок решения</h2>
+              <span class="panel-compact-title">Этапы</span>
               <p class="panel-note">Этапы сохраняют свой текст и рисунок.</p>
+            </div>
+            <div class="panel-header-actions">
+              <button class="icon-btn panel-toggle-btn" id="toggleProblemSidebar" type="button" title="Свернуть боковую панель" aria-label="Свернуть боковую панель" aria-expanded="true" aria-controls="problemSidebarBody">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
             </div>
           </div>
 
-          <div class="task-body">
+          <div class="task-body" id="problemSidebarBody">
             <label class="field-group">
               <span>Условие</span>
               <textarea id="problemCondition" rows="7" placeholder="Например: найдите площадь закрашенной части фигуры..."></textarea>
@@ -346,98 +354,136 @@
         </aside>
 
         <section class="problem-main">
-          <div class="panel image-upload-panel">
-            <label class="file-drop image-drop" for="imageUpload">
-              <input id="imageUpload" type="file" accept="image/*">
-              <span>
-                <strong>Загрузить картинку задачи</strong>
-                <small id="imageName">PNG, JPG или WEBP</small>
-              </span>
-            </label>
+          <div class="panel image-upload-panel" id="problemUploadPanel">
+            <div class="panel-header compact-panel-header">
+              <div class="panel-heading">
+                <h2 class="panel-title">Изображение задачи</h2>
+                <span class="panel-compact-title">Файл</span>
+                <p class="panel-note">Загрузите фото или скрин условия, чтобы разбирать задачу поверх рисунка.</p>
+              </div>
+              <div class="panel-header-actions">
+                <button class="icon-btn panel-toggle-btn" id="toggleProblemUpload" type="button" title="Свернуть загрузку файла" aria-label="Свернуть загрузку файла" aria-expanded="true" aria-controls="problemUploadBody">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="image-upload-body" id="problemUploadBody">
+              <label class="file-drop image-drop" for="imageUpload">
+                <input id="imageUpload" type="file" accept="image/*">
+                <span>
+                  <strong>Загрузить картинку задачи</strong>
+                  <small id="imageName">PNG, JPG или WEBP</small>
+                </span>
+              </label>
+            </div>
           </div>
 
-          <section class="panel drawing-panel">
+          <section class="panel drawing-panel" id="problemDrawingPanel">
             <div class="panel-header">
-              <div>
+              <div class="panel-heading">
                 <h2 class="panel-title">Редактор рисунка</h2>
+                <span class="panel-compact-title">Инструменты</span>
                 <p class="panel-note">Текст можно выбрать на холсте и изменить в поле «Подпись».</p>
               </div>
-            </div>
-
-            <div class="drawing-toolbar" aria-label="Инструменты редактора">
-              <div class="tool-group" role="group" aria-label="Инструменты">
-                <button class="tool-btn" type="button" data-tool="select" title="Выбрать объект" aria-label="Выбрать объект">
+              <div class="panel-header-actions">
+                <button class="icon-btn panel-toggle-btn" id="toggleDrawingTools" type="button" title="Свернуть редактор рисунка" aria-label="Свернуть редактор рисунка" aria-expanded="true" aria-controls="drawingToolbarWrap">
                   <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M5 4l6 16 2-7 7-2L5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                    <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
                 </button>
-                <button class="tool-btn active" type="button" data-tool="pen" title="Карандаш" aria-label="Карандаш">
+                <button class="ghost-btn focus-toggle-btn" id="toggleCanvasFocus" type="button" aria-pressed="false" title="Открыть рисунок на весь экран" aria-label="Открыть рисунок на весь экран">
                   <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20zM14 7l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
-                </button>
-                <button class="tool-btn" type="button" data-tool="text" title="Текст" aria-label="Текст">
-                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 6h16M12 6v12M8 18h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                  </svg>
-                </button>
-                <button class="tool-btn" type="button" data-tool="rectangle" title="Прямоугольник" aria-label="Прямоугольник">
-                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <rect x="5" y="6" width="14" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
-                  </svg>
-                </button>
-                <button class="tool-btn" type="button" data-tool="oval" title="Овал" aria-label="Овал">
-                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <ellipse cx="12" cy="12" rx="7" ry="5" fill="none" stroke="currentColor" stroke-width="2"/>
-                  </svg>
-                </button>
-              </div>
-
-              <label class="swatch-label">
-                <span>Цвет</span>
-                <input id="strokeColor" type="color" value="#d86f45">
-              </label>
-
-              <label class="range-label">
-                <span>Толщина</span>
-                <input id="strokeWidth" type="range" min="2" max="18" value="5">
-              </label>
-
-              <label class="range-label">
-                <span>Шрифт</span>
-                <input id="fontSize" type="range" min="18" max="56" value="28">
-              </label>
-
-              <label class="annotation-field">
-                <span>Подпись</span>
-                <input id="annotationText" class="annotation-input" type="text" value="Пояснение" aria-label="Текст подписи">
-              </label>
-
-              <div class="tool-group" role="group" aria-label="Действия">
-                <button class="tool-btn" id="undoAnnotation" type="button" title="Отменить" aria-label="Отменить">
-                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M9 14l-4-4 4-4M5 10h9a5 5 0 0 1 0 10h-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </button>
-                <button class="tool-btn" id="deleteSelected" type="button" title="Удалить выбранное" aria-label="Удалить выбранное">
-                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M6 7h12M10 11v6M14 11v6M8 7l1-3h6l1 3M8 7v12h8V7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </button>
-                <button class="tool-btn" id="clearAnnotations" type="button" title="Очистить рисунок" aria-label="Очистить рисунок">
-                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 15l8-8a3 3 0 0 1 4 0l1 1a3 3 0 0 1 0 4l-7 7H4v-4zM9 19l-5-5M13 18h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </button>
-                <button class="tool-btn" id="downloadCanvas" type="button" title="Скачать PNG" aria-label="Скачать PNG">
-                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 4v10M8 10l4 4 4-4M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
+                  <span id="toggleCanvasFocusLabel">На весь экран</span>
                 </button>
               </div>
             </div>
 
-            <div class="canvas-shell" id="canvasShell">
+            <div class="drawing-toolbar-wrap" id="drawingToolbarWrap">
+              <div class="drawing-toolbar" aria-label="Инструменты редактора">
+                <div class="tool-group" role="group" aria-label="Инструменты">
+                  <button class="tool-btn" type="button" data-tool="select" title="Выбрать объект" aria-label="Выбрать объект">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M5 4l6 16 2-7 7-2L5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                  <button class="tool-btn" type="button" data-tool="crop" title="Обрезка" aria-label="Обрезка">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M7 4v11a2 2 0 0 0 2 2h11M4 7h11a2 2 0 0 1 2 2v11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                  <button class="tool-btn active" type="button" data-tool="pen" title="Карандаш" aria-label="Карандаш">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20zM14 7l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                  <button class="tool-btn" type="button" data-tool="text" title="Текст" aria-label="Текст">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 6h16M12 6v12M8 18h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                  </button>
+                  <button class="tool-btn" type="button" data-tool="rectangle" title="Прямоугольник" aria-label="Прямоугольник">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <rect x="5" y="6" width="14" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                  </button>
+                  <button class="tool-btn" type="button" data-tool="oval" title="Овал" aria-label="Овал">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <ellipse cx="12" cy="12" rx="7" ry="5" fill="none" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                  </button>
+                </div>
+
+                <label class="swatch-label">
+                  <span>Цвет</span>
+                  <input id="strokeColor" type="color" value="#d86f45">
+                </label>
+
+                <label class="range-label">
+                  <span>Толщина</span>
+                  <input id="strokeWidth" type="range" min="2" max="18" value="5">
+                </label>
+
+                <label class="range-label">
+                  <span>Шрифт</span>
+                  <input id="fontSize" type="range" min="18" max="56" value="28">
+                </label>
+
+                <label class="annotation-field">
+                  <span>Подпись</span>
+                  <input id="annotationText" class="annotation-input" type="text" value="Пояснение" aria-label="Текст подписи">
+                </label>
+
+                <div class="tool-group" role="group" aria-label="Действия">
+                  <button class="tool-btn" id="undoAnnotation" type="button" title="Отменить" aria-label="Отменить">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M9 14l-4-4 4-4M5 10h9a5 5 0 0 1 0 10h-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                  <button class="tool-btn" id="deleteSelected" type="button" title="Удалить выбранное" aria-label="Удалить выбранное">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6 7h12M10 11v6M14 11v6M8 7l1-3h6l1 3M8 7v12h8V7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                  <button class="tool-btn" id="clearAnnotations" type="button" title="Очистить рисунок" aria-label="Очистить рисунок">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 15l8-8a3 3 0 0 1 4 0l1 1a3 3 0 0 1 0 4l-7 7H4v-4zM9 19l-5-5M13 18h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                  <button class="tool-btn" id="downloadCanvas" type="button" title="Скачать PNG" aria-label="Скачать PNG">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 4v10M8 10l4 4 4-4M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="canvas-shell" id="canvasShell" tabindex="0" aria-label="Область редактирования рисунка">
               <canvas id="problemCanvas" width="960" height="620"></canvas>
               <input id="canvasTextEditor" class="canvas-text-editor" type="text" hidden>
             </div>

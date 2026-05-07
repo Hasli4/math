@@ -967,6 +967,9 @@
     };
 
     function setView(view) {
+      if (view !== "problems" && typeof setProblemFocusMode === "function" && typeof problemState !== "undefined" && problemState.fullscreen) {
+        setProblemFocusMode(false);
+      }
       viewButtons.forEach((button) => {
         button.classList.toggle("active", button.dataset.view === view);
       });
@@ -977,7 +980,10 @@
       });
       subtitle.textContent = subtitles[view] || subtitles.fractions;
       if (view === "problems") {
-        drawProblemCanvas();
+        window.requestAnimationFrame(() => {
+          resizeProblemCanvasDisplay();
+          drawProblemCanvas();
+        });
       }
     }
 
@@ -986,7 +992,14 @@
     });
 
     const problemElements = {
+      workspace: document.getElementById("problemWorkspace"),
+      sidebar: document.getElementById("problemSidebar"),
+      sidebarToggle: document.getElementById("toggleProblemSidebar"),
+      sidebarBody: document.getElementById("problemSidebarBody"),
       condition: document.getElementById("problemCondition"),
+      uploadPanel: document.getElementById("problemUploadPanel"),
+      uploadToggle: document.getElementById("toggleProblemUpload"),
+      uploadBody: document.getElementById("problemUploadBody"),
       imageUpload: document.getElementById("imageUpload"),
       imageName: document.getElementById("imageName"),
       stageTabs: document.getElementById("stageTabs"),
@@ -998,6 +1011,11 @@
       substepText: document.getElementById("substepText"),
       addSubstep: document.getElementById("addSubstep"),
       substepsList: document.getElementById("substepsList"),
+      drawingPanel: document.getElementById("problemDrawingPanel"),
+      toolsToggle: document.getElementById("toggleDrawingTools"),
+      drawingToolbarWrap: document.getElementById("drawingToolbarWrap"),
+      toggleCanvasFocus: document.getElementById("toggleCanvasFocus"),
+      toggleCanvasFocusLabel: document.getElementById("toggleCanvasFocusLabel"),
       canvasShell: document.getElementById("canvasShell"),
       canvas: document.getElementById("problemCanvas"),
       canvasTextEditor: document.getElementById("canvasTextEditor"),
@@ -1048,15 +1066,48 @@
       originalAnnotation: null,
       dragOffset: { x: 0, y: 0 },
       clipboard: null,
+      croppingAnnotation: false,
+      cropHandle: null,
       image: null,
       imageBounds: null,
       isDrawing: false,
       currentPath: [],
       startPoint: null,
-      draft: null
+      draft: null,
+      fullscreen: false,
+      collapsedPanels: {
+        sidebar: false,
+        upload: false,
+        tools: false
+      }
     };
 
     const problemCtx = problemElements.canvas.getContext("2d");
+    const annotationImageCache = new Map();
+    const problemCanvasAspect = problemElements.canvas.width / problemElements.canvas.height;
+    const problemPanelConfig = {
+      sidebar: {
+        panel: problemElements.sidebar,
+        body: problemElements.sidebarBody,
+        toggle: problemElements.sidebarToggle,
+        collapseTitle: "Свернуть боковую панель",
+        expandTitle: "Развернуть боковую панель"
+      },
+      upload: {
+        panel: problemElements.uploadPanel,
+        body: problemElements.uploadBody,
+        toggle: problemElements.uploadToggle,
+        collapseTitle: "Свернуть загрузку файла",
+        expandTitle: "Развернуть загрузку файла"
+      },
+      tools: {
+        panel: problemElements.drawingPanel,
+        body: problemElements.drawingToolbarWrap,
+        toggle: problemElements.toolsToggle,
+        collapseTitle: "Свернуть редактор рисунка",
+        expandTitle: "Развернуть редактор рисунка"
+      }
+    };
 
     function escapeHtml(value) {
       return value
@@ -1064,6 +1115,207 @@
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;");
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+
+    function focusProblemEditorSurface() {
+      if (typeof problemElements.canvasShell.focus === "function") {
+        problemElements.canvasShell.focus({ preventScroll: true });
+      }
+    }
+
+    function isCanvasFocusTarget(target = document.activeElement) {
+      return target === problemElements.canvasShell
+        || target === problemElements.canvas
+        || target === problemElements.canvasTextEditor;
+    }
+
+    function loadAnnotationImage(source, onReady = null) {
+      if (!source) {
+        return null;
+      }
+
+      let entry = annotationImageCache.get(source);
+      if (!entry) {
+        const image = new Image();
+        entry = {
+          image,
+          loaded: false,
+          listeners: []
+        };
+        image.addEventListener("load", () => {
+          entry.loaded = true;
+          const listeners = [...entry.listeners];
+          entry.listeners.length = 0;
+          listeners.forEach((listener) => listener(image));
+          drawProblemCanvas();
+        });
+        image.src = source;
+        annotationImageCache.set(source, entry);
+      }
+
+      if (onReady) {
+        if (entry.loaded) {
+          onReady(entry.image);
+        } else {
+          entry.listeners.push(onReady);
+        }
+      }
+
+      return entry.loaded ? entry.image : null;
+    }
+
+    function getAnnotationImage(annotation, onReady = null) {
+      return loadAnnotationImage(annotation?.source, onReady);
+    }
+
+    function normalizeImageCrop(annotation) {
+      const image = annotation ? getAnnotationImage(annotation) : null;
+      const naturalWidth = Math.max(1, annotation?.naturalWidth || image?.naturalWidth || image?.width || 1);
+      const naturalHeight = Math.max(1, annotation?.naturalHeight || image?.naturalHeight || image?.height || 1);
+      const cropX = clamp(Number.isFinite(annotation?.cropX) ? annotation.cropX : 0, 0, naturalWidth - 1);
+      const cropY = clamp(Number.isFinite(annotation?.cropY) ? annotation.cropY : 0, 0, naturalHeight - 1);
+      const cropWidth = clamp(
+        Number.isFinite(annotation?.cropWidth) ? annotation.cropWidth : naturalWidth - cropX,
+        1,
+        naturalWidth - cropX
+      );
+      const cropHeight = clamp(
+        Number.isFinite(annotation?.cropHeight) ? annotation.cropHeight : naturalHeight - cropY,
+        1,
+        naturalHeight - cropY
+      );
+
+      if (annotation) {
+        annotation.naturalWidth = naturalWidth;
+        annotation.naturalHeight = naturalHeight;
+        annotation.cropX = cropX;
+        annotation.cropY = cropY;
+        annotation.cropWidth = cropWidth;
+        annotation.cropHeight = cropHeight;
+      }
+
+      return {
+        naturalWidth,
+        naturalHeight,
+        cropX,
+        cropY,
+        cropWidth,
+        cropHeight
+      };
+    }
+
+    function fitImageAnnotationToCanvas(image, targetCenter = null) {
+      const canvas = problemElements.canvas;
+      const margin = 56;
+      const maxWidth = Math.max(160, canvas.width - margin * 2);
+      const maxHeight = Math.max(120, canvas.height - margin * 2);
+      const scale = Math.min(maxWidth / image.width, maxHeight / image.height);
+      const width = Math.max(48, image.width * scale);
+      const height = Math.max(48, image.height * scale);
+      const centerX = targetCenter?.x ?? canvas.width / 2;
+      const centerY = targetCenter?.y ?? canvas.height / 2;
+      const x = clamp(centerX - width / 2, margin / 2, canvas.width - width - margin / 2);
+      const y = clamp(centerY - height / 2, margin / 2, canvas.height - height - margin / 2);
+      return { x, y, width, height };
+    }
+
+    function resizeProblemCanvasDisplay() {
+      const shell = problemElements.canvasShell;
+      if (!shell || shell.clientWidth === 0) {
+        return;
+      }
+
+      const shellStyles = window.getComputedStyle(shell);
+      const paddingX = parseFloat(shellStyles.paddingLeft) + parseFloat(shellStyles.paddingRight);
+      const paddingY = parseFloat(shellStyles.paddingTop) + parseFloat(shellStyles.paddingBottom);
+      const availableWidth = Math.max(240, shell.clientWidth - paddingX);
+      let availableHeight = shell.clientHeight - paddingY;
+
+      if (!Number.isFinite(availableHeight) || availableHeight <= 0) {
+        availableHeight = problemState.fullscreen
+          ? window.innerHeight - 240
+          : Math.min(availableWidth / problemCanvasAspect, 620);
+      }
+
+      const widthFromHeight = availableHeight * problemCanvasAspect;
+      const displayWidth = Math.max(240, Math.min(availableWidth, widthFromHeight));
+      const displayHeight = displayWidth / problemCanvasAspect;
+
+      problemElements.canvas.style.width = `${Math.round(displayWidth)}px`;
+      problemElements.canvas.style.height = `${Math.round(displayHeight)}px`;
+    }
+
+    function updateProblemPanelToggle(toggle, collapsed, collapseTitle, expandTitle) {
+      const title = collapsed ? expandTitle : collapseTitle;
+      toggle.setAttribute("title", title);
+      toggle.setAttribute("aria-label", title);
+      toggle.setAttribute("aria-expanded", String(!collapsed));
+    }
+
+    function applyProblemPanelState(name) {
+      const config = problemPanelConfig[name];
+      if (!config) {
+        return;
+      }
+      const collapsed = problemState.collapsedPanels[name];
+      config.panel.classList.toggle("panel-collapsed", collapsed);
+      if (config.body) {
+        config.body.hidden = collapsed;
+      }
+      updateProblemPanelToggle(config.toggle, collapsed, config.collapseTitle, config.expandTitle);
+      if (name === "sidebar") {
+        problemElements.workspace.classList.toggle("problem-sidebar-collapsed", collapsed);
+      }
+    }
+
+    function setProblemPanelCollapsed(name, collapsed) {
+      if (!(name in problemState.collapsedPanels)) {
+        return;
+      }
+      closeCanvasTextEditor(true);
+      problemState.collapsedPanels[name] = collapsed;
+      applyProblemPanelState(name);
+      window.requestAnimationFrame(() => {
+        resizeProblemCanvasDisplay();
+        drawProblemCanvas();
+      });
+    }
+
+    function toggleProblemPanel(name) {
+      setProblemPanelCollapsed(name, !problemState.collapsedPanels[name]);
+    }
+
+    function setProblemFocusMode(enabled) {
+      if (problemState.fullscreen === enabled) {
+        return;
+      }
+      closeCanvasTextEditor(true);
+      if (enabled && problemState.collapsedPanels.tools) {
+        problemState.collapsedPanels.tools = false;
+        applyProblemPanelState("tools");
+      }
+      problemState.fullscreen = enabled;
+      problemElements.workspace.classList.toggle("problem-focus-mode", enabled);
+      document.body.classList.toggle("problem-focus-active", enabled);
+      problemElements.toggleCanvasFocus.setAttribute("aria-pressed", String(enabled));
+      problemElements.toggleCanvasFocus.classList.toggle("active", enabled);
+      const label = enabled ? "Обычный режим" : "На весь экран";
+      const title = enabled ? "Вернуться к обычному режиму" : "Открыть рисунок на весь экран";
+      problemElements.toggleCanvasFocusLabel.textContent = label;
+      problemElements.toggleCanvasFocus.setAttribute("title", title);
+      problemElements.toggleCanvasFocus.setAttribute("aria-label", title);
+      window.requestAnimationFrame(() => {
+        resizeProblemCanvasDisplay();
+        drawProblemCanvas();
+      });
+    }
+
+    function toggleProblemFocusMode() {
+      setProblemFocusMode(!problemState.fullscreen);
     }
 
     function cloneAnnotations(source = problemState.annotations) {
@@ -1221,6 +1473,7 @@
       renderStageTabs();
       renderSubsteps();
       problemElements.transferPrevious.disabled = problemState.activeStageIndex === 0;
+      resizeProblemCanvasDisplay();
       drawProblemCanvas();
     }
 
@@ -1251,7 +1504,7 @@
 
     function setTool(tool, keepSelection = false) {
       problemState.tool = tool;
-      if (tool !== "text" && !keepSelection) {
+      if (tool !== "text" && tool !== "crop" && !keepSelection) {
         problemState.selectedAnnotationIndex = null;
         problemState.selectedAnnotationIndexes = [];
         problemState.selectedTextIndex = null;
@@ -1434,6 +1687,19 @@
       ];
     }
 
+    function cropHandles(bounds) {
+      return [
+        { name: "nw", x: bounds.x, y: bounds.y },
+        { name: "n", x: bounds.x + bounds.width / 2, y: bounds.y },
+        { name: "ne", x: bounds.x + bounds.width, y: bounds.y },
+        { name: "e", x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 },
+        { name: "se", x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+        { name: "s", x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height },
+        { name: "sw", x: bounds.x, y: bounds.y + bounds.height },
+        { name: "w", x: bounds.x, y: bounds.y + bounds.height / 2 }
+      ];
+    }
+
     function pointInBounds(point, bounds) {
       return point.x >= bounds.x
         && point.x <= bounds.x + bounds.width
@@ -1446,12 +1712,28 @@
         return null;
       }
       const annotation = problemState.annotations[problemState.selectedAnnotationIndex];
-      if (!annotation || (annotation.type !== "rectangle" && annotation.type !== "oval")) {
+      if (!annotation || (annotation.type !== "rectangle" && annotation.type !== "oval" && annotation.type !== "image")) {
         return null;
       }
       const handleSize = 10;
       const bounds = annotationBounds(annotation);
       return resizeHandles(bounds).find((handle) => (
+        Math.abs(point.x - handle.x) <= handleSize
+        && Math.abs(point.y - handle.y) <= handleSize
+      ))?.name || null;
+    }
+
+    function findCropHandleAt(point) {
+      if (problemState.selectedAnnotationIndexes.length !== 1) {
+        return null;
+      }
+      const annotation = problemState.annotations[problemState.selectedAnnotationIndex];
+      if (!annotation || annotation.type !== "image") {
+        return null;
+      }
+      const handleSize = 12;
+      const bounds = annotationBounds(annotation);
+      return cropHandles(bounds).find((handle) => (
         Math.abs(point.x - handle.x) <= handleSize
         && Math.abs(point.y - handle.y) <= handleSize
       ))?.name || null;
@@ -1475,12 +1757,22 @@
       if (handle === "ne" || handle === "sw") {
         return "nesw-resize";
       }
+      if (handle === "n" || handle === "s") {
+        return "ns-resize";
+      }
+      if (handle === "e" || handle === "w") {
+        return "ew-resize";
+      }
       return "default";
     }
 
     function setBaseCanvasCursor() {
       if (problemState.tool === "text") {
         problemElements.canvas.style.cursor = "text";
+        return;
+      }
+      if (problemState.tool === "crop") {
+        problemElements.canvas.style.cursor = "default";
         return;
       }
       if (problemState.tool === "pen" || problemState.tool === "rectangle" || problemState.tool === "oval") {
@@ -1507,6 +1799,18 @@
       if (problemState.tool === "text") {
         const point = canvasPoint(event);
         problemElements.canvas.style.cursor = findTextAt(point) >= 0 ? "move" : "text";
+        return;
+      }
+      if (problemState.tool === "crop") {
+        const point = canvasPoint(event);
+        const handle = findCropHandleAt(point);
+        if (handle) {
+          problemElements.canvas.style.cursor = resizeCursor(handle);
+          return;
+        }
+        const hitIndex = findAnnotationAt(point);
+        const hitAnnotation = hitIndex >= 0 ? problemState.annotations[hitIndex] : null;
+        problemElements.canvas.style.cursor = hitAnnotation?.type === "image" ? "crosshair" : "default";
         return;
       }
       problemElements.canvas.style.cursor = "crosshair";
@@ -1536,7 +1840,14 @@
       problemCtx.lineWidth = 2;
       problemCtx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
       problemCtx.setLineDash([]);
-      if (annotation.type === "rectangle" || annotation.type === "oval") {
+      if (annotation.type === "image" && problemState.tool === "crop" && problemState.selectedAnnotationIndexes.length === 1) {
+        problemCtx.fillStyle = "rgba(23, 107, 135, 0.14)";
+        problemCtx.strokeStyle = "#176b87";
+        cropHandles(bounds).forEach((handle) => {
+          problemCtx.fillRect(handle.x - 5, handle.y - 5, 10, 10);
+          problemCtx.strokeRect(handle.x - 5, handle.y - 5, 10, 10);
+        });
+      } else if (annotation.type === "rectangle" || annotation.type === "oval" || annotation.type === "image") {
         problemCtx.fillStyle = "#ffffff";
         problemCtx.strokeStyle = "#176b87";
         resizeHandles(bounds).forEach((handle) => {
@@ -1600,6 +1911,40 @@
           Math.PI * 2
         );
         problemCtx.stroke();
+      }
+
+      if (annotation.type === "image") {
+        const rect = normalizeRect(annotation);
+        const crop = normalizeImageCrop(annotation);
+        const image = getAnnotationImage(annotation);
+        if (image) {
+          problemCtx.drawImage(
+            image,
+            crop.cropX,
+            crop.cropY,
+            crop.cropWidth,
+            crop.cropHeight,
+            rect.x,
+            rect.y,
+            rect.width,
+            rect.height
+          );
+        } else {
+          problemCtx.fillStyle = "#edf3f6";
+          problemCtx.strokeStyle = "rgba(23, 33, 43, 0.18)";
+          problemCtx.lineWidth = 2;
+          problemCtx.setLineDash([10, 8]);
+          problemCtx.fillRect(rect.x, rect.y, rect.width, rect.height);
+          problemCtx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+          problemCtx.setLineDash([]);
+          problemCtx.fillStyle = "#607080";
+          problemCtx.font = "700 20px Segoe UI, Arial, sans-serif";
+          problemCtx.textAlign = "center";
+          problemCtx.fillText("Загрузка изображения", rect.x + rect.width / 2, rect.y + rect.height / 2);
+          getAnnotationImage(annotation, () => {
+            drawProblemCanvas();
+          });
+        }
       }
 
       if (annotation.type === "text") {
@@ -1764,9 +2109,11 @@
       problemElements.canvasTextEditor.hidden = true;
       problemState.movingAnnotation = false;
       problemState.resizingAnnotation = false;
+      problemState.croppingAnnotation = false;
       problemState.selectingBox = false;
       problemState.selectionBox = null;
       problemState.resizeHandle = null;
+      problemState.cropHandle = null;
       problemState.lastPoint = null;
       problemState.originalAnnotation = null;
     }
@@ -1788,7 +2135,7 @@
     }
 
     function resizeAnnotation(annotation, handle, point, original) {
-      if (annotation.type !== "rectangle" && annotation.type !== "oval") {
+      if (annotation.type !== "rectangle" && annotation.type !== "oval" && annotation.type !== "image") {
         return;
       }
       const rect = normalizeRect(original);
@@ -1821,6 +2168,63 @@
       annotation.height = bottom - top;
     }
 
+    function cropImageAnnotation(annotation, handle, point, original) {
+      if (annotation.type !== "image") {
+        return;
+      }
+
+      const rect = normalizeRect(original);
+      const crop = normalizeImageCrop(original);
+      const scaleX = rect.width / crop.cropWidth;
+      const scaleY = rect.height / crop.cropHeight;
+      const minDisplay = 24;
+      const minCropPixels = 12;
+
+      let left = rect.x;
+      let top = rect.y;
+      let right = rect.x + rect.width;
+      let bottom = rect.y + rect.height;
+
+      if (handle.includes("w")) {
+        left = clamp(point.x, rect.x, right - minDisplay);
+      }
+      if (handle.includes("e")) {
+        right = clamp(point.x, left + minDisplay, rect.x + rect.width);
+      }
+      if (handle.includes("n")) {
+        top = clamp(point.y, rect.y, bottom - minDisplay);
+      }
+      if (handle.includes("s")) {
+        bottom = clamp(point.y, top + minDisplay, rect.y + rect.height);
+      }
+
+      const nextWidth = right - left;
+      const nextHeight = bottom - top;
+      if (nextWidth < minDisplay || nextHeight < minDisplay) {
+        return;
+      }
+
+      const nextCropX = crop.cropX + (left - rect.x) / scaleX;
+      const nextCropY = crop.cropY + (top - rect.y) / scaleY;
+      const nextCropWidth = nextWidth / scaleX;
+      const nextCropHeight = nextHeight / scaleY;
+
+      if (nextCropWidth < minCropPixels || nextCropHeight < minCropPixels) {
+        return;
+      }
+
+      annotation.x = left;
+      annotation.y = top;
+      annotation.width = nextWidth;
+      annotation.height = nextHeight;
+      annotation.cropX = clamp(nextCropX, 0, crop.naturalWidth - minCropPixels);
+      annotation.cropY = clamp(nextCropY, 0, crop.naturalHeight - minCropPixels);
+      annotation.cropWidth = clamp(nextCropWidth, minCropPixels, crop.naturalWidth - annotation.cropX);
+      annotation.cropHeight = clamp(nextCropHeight, minCropPixels, crop.naturalHeight - annotation.cropY);
+      annotation.naturalWidth = crop.naturalWidth;
+      annotation.naturalHeight = crop.naturalHeight;
+    }
+
     function addTextAnnotation(point) {
       const style = currentDrawingStyle();
       const fieldText = problemElements.annotationText.value;
@@ -1842,6 +2246,79 @@
       openCanvasTextEditor(index, point, true);
     }
 
+    function addImageAnnotationFromSource(source, image, targetPoint = null) {
+      const style = currentDrawingStyle();
+      const frame = fitImageAnnotationToCanvas(image, targetPoint);
+      problemState.annotations.push({
+        type: "image",
+        x: frame.x,
+        y: frame.y,
+        width: frame.width,
+        height: frame.height,
+        source,
+        naturalWidth: image.naturalWidth || image.width,
+        naturalHeight: image.naturalHeight || image.height,
+        cropX: 0,
+        cropY: 0,
+        cropWidth: image.naturalWidth || image.width,
+        cropHeight: image.naturalHeight || image.height,
+        color: style.color,
+        strokeWidth: style.width
+      });
+      const index = problemState.annotations.length - 1;
+      selectAnnotation(index, "select");
+      persistVisuals();
+      rememberAnnotationState();
+      drawProblemCanvas();
+    }
+
+    function addImageAnnotationFromBlob(blob) {
+      if (!blob) {
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        const source = String(reader.result || "");
+        const image = new Image();
+        image.addEventListener("load", () => {
+          annotationImageCache.set(source, {
+            image,
+            loaded: true,
+            listeners: []
+          });
+          const targetPoint = problemState.mouseInCanvas ? problemState.lastCanvasPoint : null;
+          addImageAnnotationFromSource(source, image, targetPoint);
+        });
+        image.src = source;
+      });
+      reader.readAsDataURL(blob);
+    }
+
+    function handleCanvasPaste(event) {
+      if (!isCanvasFocusTarget(event.target) && !isCanvasFocusTarget(document.activeElement)) {
+        return;
+      }
+      if (event.target === problemElements.canvasTextEditor || document.activeElement === problemElements.canvasTextEditor) {
+        return;
+      }
+
+      const items = Array.from(event.clipboardData?.items || []);
+      const imageItem = items.find((item) => item.type.startsWith("image/"));
+      if (imageItem) {
+        event.preventDefault();
+        focusProblemEditorSurface();
+        closeCanvasTextEditor(true);
+        addImageAnnotationFromBlob(imageItem.getAsFile());
+        return;
+      }
+
+      if (problemState.clipboard?.annotations?.length) {
+        event.preventDefault();
+        pasteClipboard("paste");
+      }
+    }
+
     function updateSelectedText() {
       const index = problemState.selectedTextIndex;
       const annotation = problemState.annotations[index];
@@ -1859,11 +2336,32 @@
 
     function startDrawing(event) {
       event.preventDefault();
+      focusProblemEditorSurface();
       const point = canvasPoint(event);
       problemState.lastCanvasPoint = point;
       problemState.mouseInCanvas = true;
       if (problemState.editingTextIndex !== null) {
         closeCanvasTextEditor(true);
+      }
+      if (problemState.tool === "crop") {
+        const handle = findCropHandleAt(point);
+        if (handle) {
+          problemState.croppingAnnotation = true;
+          problemState.cropHandle = handle;
+          problemState.originalAnnotation = cloneAnnotations([problemState.annotations[problemState.selectedAnnotationIndex]])[0];
+          problemElements.canvas.setPointerCapture(event.pointerId);
+          return;
+        }
+
+        const hitIndex = findAnnotationAt(point);
+        const hitAnnotation = hitIndex >= 0 ? problemState.annotations[hitIndex] : null;
+        if (hitAnnotation?.type === "image") {
+          selectAnnotation(hitIndex, "crop");
+        } else {
+          clearAnnotationSelection();
+        }
+        drawProblemCanvas();
+        return;
       }
       if (problemState.tool === "select") {
         const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
@@ -1944,7 +2442,7 @@
       const currentPoint = canvasPoint(event);
       problemState.lastCanvasPoint = currentPoint;
       problemState.mouseInCanvas = true;
-      if (!problemState.draggingText && !problemState.movingAnnotation && !problemState.resizingAnnotation && !problemState.isDrawing) {
+      if (!problemState.draggingText && !problemState.movingAnnotation && !problemState.resizingAnnotation && !problemState.croppingAnnotation && !problemState.isDrawing) {
         updateCanvasCursor(event);
       }
 
@@ -1979,6 +2477,17 @@
         const annotation = problemState.annotations[problemState.selectedAnnotationIndex];
         if (annotation && problemState.originalAnnotation) {
           resizeAnnotation(annotation, problemState.resizeHandle, point, problemState.originalAnnotation);
+          drawProblemCanvas();
+        }
+        return;
+      }
+
+      if (problemState.croppingAnnotation) {
+        event.preventDefault();
+        const point = canvasPoint(event);
+        const annotation = problemState.annotations[problemState.selectedAnnotationIndex];
+        if (annotation && problemState.originalAnnotation) {
+          cropImageAnnotation(annotation, problemState.cropHandle, point, problemState.originalAnnotation);
           drawProblemCanvas();
         }
         return;
@@ -2057,6 +2566,17 @@
         problemState.resizingAnnotation = false;
         problemState.resizeHandle = null;
         problemState.lastPoint = null;
+        problemState.originalAnnotation = null;
+        persistVisuals();
+        rememberAnnotationState();
+        drawProblemCanvas();
+        return;
+      }
+
+      if (problemState.croppingAnnotation) {
+        event.preventDefault();
+        problemState.croppingAnnotation = false;
+        problemState.cropHandle = null;
         problemState.originalAnnotation = null;
         persistVisuals();
         rememberAnnotationState();
@@ -2183,6 +2703,11 @@
     problemElements.canvas.addEventListener("pointermove", continueDrawing);
     problemElements.canvas.addEventListener("pointerup", finishDrawing);
     problemElements.canvas.addEventListener("pointercancel", finishDrawing);
+    problemElements.canvasShell.addEventListener("pointerdown", (event) => {
+      if (event.target !== problemElements.canvasTextEditor) {
+        focusProblemEditorSurface();
+      }
+    });
     problemElements.canvas.addEventListener("dblclick", (event) => {
       if (problemState.tool !== "select") {
         return;
@@ -2203,6 +2728,7 @@
       problemState.mouseInCanvas = false;
       setBaseCanvasCursor();
     });
+    document.addEventListener("paste", handleCanvasPaste);
 
     problemElements.imageUpload.addEventListener("change", () => {
       const file = problemElements.imageUpload.files[0];
@@ -2215,6 +2741,7 @@
         image.addEventListener("load", () => {
           problemState.image = image;
           problemElements.imageName.textContent = file.name;
+          resizeProblemCanvasDisplay();
           drawProblemCanvas();
         });
         image.src = reader.result;
@@ -2232,6 +2759,18 @@
     problemElements.addStage.addEventListener("click", addStage);
     problemElements.saveStage.addEventListener("click", saveStage);
     problemElements.transferPrevious.addEventListener("click", transferPreviousAnnotations);
+    problemElements.sidebarToggle.addEventListener("click", () => {
+      toggleProblemPanel("sidebar");
+    });
+    problemElements.uploadToggle.addEventListener("click", () => {
+      toggleProblemPanel("upload");
+    });
+    problemElements.toolsToggle.addEventListener("click", () => {
+      toggleProblemPanel("tools");
+    });
+    problemElements.toggleCanvasFocus.addEventListener("click", () => {
+      toggleProblemFocusMode();
+    });
 
     problemElements.stageTitle.addEventListener("input", () => {
       activeStage().title = problemElements.stageTitle.value.trim() || `Этап ${problemState.activeStageIndex + 1}`;
@@ -2260,6 +2799,12 @@
     });
 
     document.addEventListener("keydown", (event) => {
+      if (problemState.fullscreen && event.key === "Escape" && event.target !== problemElements.canvasTextEditor) {
+        event.preventDefault();
+        setProblemFocusMode(false);
+        return;
+      }
+
       if (isTypingTarget(event.target) && event.target !== problemElements.canvasTextEditor) {
         return;
       }
@@ -2293,6 +2838,9 @@
         return;
       }
       if (modifierPressed && event.code === "KeyV") {
+        if (isCanvasFocusTarget(event.target) || isCanvasFocusTarget(document.activeElement)) {
+          return;
+        }
         event.preventDefault();
         pasteClipboard("paste");
         return;
@@ -2406,5 +2954,15 @@
       }
     });
 
+    window.addEventListener("resize", () => {
+      resizeProblemCanvasDisplay();
+      drawProblemCanvas();
+    });
+
+    Object.keys(problemPanelConfig).forEach((name) => {
+      applyProblemPanelState(name);
+    });
+
     setBaseCanvasCursor();
+    resizeProblemCanvasDisplay();
     loadActiveStageIntoForm();
