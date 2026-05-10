@@ -1,7 +1,8 @@
     const state = {
       operation: "add",
       steps: [],
-      visibleSteps: 0
+      visibleSteps: 0,
+      revealed: {}
     };
 
     const fields = {
@@ -12,7 +13,8 @@
       rightNum: document.getElementById("rightNum"),
       rightDen: document.getElementById("rightDen"),
       showReduction: document.getElementById("showReduction"),
-      showMixed: document.getElementById("showMixed")
+      showMixed: document.getElementById("showMixed"),
+      hideAnswers: document.getElementById("fractionHideAnswers")
     };
 
     const elements = {
@@ -149,6 +151,33 @@
 
     function expression(parts) {
       return `<div class="compact-expression">${parts.join(" ")}</div>`;
+    }
+
+    function escapeAttribute(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
+    function buildSpoilerMarkup(key, content, label, variant = "block", isHiddenByDefault = false, revealed = {}) {
+      const wrapperTag = variant === "inline" ? "span" : "div";
+      const bodyTag = variant === "inline" ? "span" : "div";
+      if (!isHiddenByDefault) {
+        return content;
+      }
+      if (revealed[key]) {
+        return `<${wrapperTag} class="spoiler spoiler--${variant}"><${bodyTag} class="spoiler-body">${content}</${bodyTag}></${wrapperTag}>`;
+      }
+      return `
+        <${wrapperTag} class="spoiler spoiler--${variant}">
+          <button class="spoiler-mask" type="button" data-spoiler-button="true" data-spoiler-key="${escapeAttribute(key)}" aria-label="${escapeAttribute(label)}">
+            <span class="spoiler-mask-text">${escapeTextMarkup(label)}</span>
+          </button>
+        </${wrapperTag}>
+      `;
     }
 
     function makeStep(title, explain, math) {
@@ -446,7 +475,14 @@
           <div class="step-content">
             <h3 class="step-title">${step.title}</h3>
             <p class="step-explain">${step.explain}</p>
-            <div class="step-math">${step.math}</div>
+            ${buildSpoilerMarkup(
+              `fraction-step-${index}`,
+              `<div class="step-math">${step.math}</div>`,
+              step.title === "Ответ" ? "Нажмите, чтобы открыть ответ" : "Нажмите, чтобы открыть вычисления",
+              "block",
+              fields.hideAnswers.checked,
+              state.revealed
+            )}
           </div>
         </article>
       `).join("");
@@ -481,6 +517,7 @@
         const result = solve();
         state.steps = result.steps;
         state.visibleSteps = Math.min(1, state.steps.length);
+        state.revealed = {};
         renderEquation(result.left, result.right);
         renderSteps();
       } catch (error) {
@@ -570,25 +607,60 @@
       renderSteps();
     });
 
+    elements.steps.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-spoiler-button]");
+      if (!button) {
+        return;
+      }
+      state.revealed[button.dataset.spoilerKey] = true;
+      renderSteps();
+    });
+
+    fields.hideAnswers.addEventListener("change", () => {
+      renderSteps();
+    });
+
     updateAllPreviews();
     handleSolve(new Event("submit"));
 
     const divisionState = {
+      operation: "divide",
       steps: [],
       visibleSteps: 0,
       equation: "",
       quotient: "0",
-      remainder: "0"
+      remainder: "0",
+      revealed: {}
     };
 
     const divisionElements = {
       form: document.getElementById("longDivisionForm"),
+      builderNote: document.getElementById("columnBuilderNote"),
+      operationReadable: document.getElementById("columnOperationReadable"),
+      operationButtons: document.querySelectorAll("[data-column-operation]"),
+      leftLabel: document.getElementById("columnLeftLabel"),
+      rightLabel: document.getElementById("columnRightLabel"),
       dividend: document.getElementById("divisionDividend"),
       divisor: document.getElementById("divisionDivisor"),
+      options: document.getElementById("divisionOptions"),
+      hideAnswers: document.getElementById("columnHideAnswers"),
       continueDecimals: document.getElementById("divisionContinueDecimals"),
       precision: document.getElementById("divisionPrecision"),
+      primaryLabel: document.getElementById("divisionPrimaryLabel"),
       quotientPreview: document.getElementById("divisionQuotientPreview"),
+      secondaryRow: document.getElementById("divisionSecondaryRow"),
+      secondaryLabel: document.getElementById("divisionSecondaryLabel"),
       remainderPreview: document.getElementById("divisionRemainderPreview"),
+      summaryCard: document.getElementById("divisionSummaryCard"),
+      solveLabel: document.getElementById("columnSolveLabel"),
+      resultTitle: document.getElementById("columnResultTitle"),
+      resultNote: document.getElementById("columnResultNote"),
+      noteTitle1: document.getElementById("columnNoteTitle1"),
+      noteText1: document.getElementById("columnNoteText1"),
+      noteTitle2: document.getElementById("columnNoteTitle2"),
+      noteText2: document.getElementById("columnNoteText2"),
+      noteTitle3: document.getElementById("columnNoteTitle3"),
+      noteText3: document.getElementById("columnNoteText3"),
       equation: document.getElementById("divisionEquation"),
       board: document.getElementById("divisionBoard"),
       steps: document.getElementById("divisionSteps"),
@@ -600,6 +672,78 @@
       prevStepBottom: document.getElementById("divisionPrevStepBottom"),
       nextStepBottom: document.getElementById("divisionNextStepBottom"),
       showAllBottom: document.getElementById("divisionShowAllBottom")
+    };
+
+    const columnOperationMeta = {
+      add: {
+        symbol: "+",
+        readable: "сложение",
+        leftLabel: "Первое число",
+        rightLabel: "Второе число",
+        builderNote: "Только целые неотрицательные числа. Складываем по разрядам справа налево и при необходимости переносим десяток влево.",
+        solveLabel: "Разобрать сложение",
+        resultTitle: "Пошаговое сложение",
+        resultNote: "Показывайте каждый разряд: сумму цифр, перенос и запись новой цифры результата.",
+        primaryLabel: "Сумма",
+        showSecondary: false,
+        notes: [
+          ["Начинаем справа", "Сначала складываем единицы, затем десятки, сотни и остальные старшие разряды."],
+          ["Перенос", "Если сумма в разряде 10 или больше, записываем последнюю цифру, а десяток переносим левее."],
+          ["Ответ", "После старшего разряда дописываем оставшийся перенос, если он есть."]
+        ]
+      },
+      subtract: {
+        symbol: "-",
+        readable: "вычитание",
+        leftLabel: "Уменьшаемое",
+        rightLabel: "Вычитаемое",
+        builderNote: "Только целые неотрицательные числа. В этой версии уменьшаемое должно быть не меньше вычитаемого.",
+        solveLabel: "Разобрать вычитание",
+        resultTitle: "Пошаговое вычитание",
+        resultNote: "Показывайте разряды справа налево: когда хватает цифры и когда нужно занимать единицу у старшего разряда.",
+        primaryLabel: "Разность",
+        showSecondary: false,
+        notes: [
+          ["Начинаем справа", "Вычитаем по разрядам, начиная с единиц и двигаясь влево."],
+          ["Заем", "Если верхняя цифра меньше нижней, занимаем единицу из следующего старшего разряда."],
+          ["Цепочка нулей", "Если слева идут нули, заем передается дальше, а промежуточные нули превращаются в 9."]
+        ]
+      },
+      multiply: {
+        symbol: "×",
+        readable: "умножение",
+        leftLabel: "Первый множитель",
+        rightLabel: "Второй множитель",
+        builderNote: "Только целые неотрицательные числа. Для каждой цифры второго множителя строим отдельную строку частичного произведения.",
+        solveLabel: "Разобрать умножение",
+        resultTitle: "Пошаговое умножение",
+        resultNote: "Показывайте частичные произведения по строкам, а затем итоговую сумму всех строк.",
+        primaryLabel: "Произведение",
+        showSecondary: false,
+        notes: [
+          ["Частичные произведения", "Каждую цифру второго множителя умножаем на первый множитель и записываем отдельной строкой."],
+          ["Сдвиг строки", "Для десятков, сотен и других старших разрядов новая строка сдвигается влево."],
+          ["Итог", "Если строк несколько, складываем их и получаем окончательное произведение."]
+        ]
+      },
+      divide: {
+        symbol: ":",
+        readable: "деление",
+        leftLabel: "Делимое",
+        rightLabel: "Делитель",
+        builderNote: "Только целые неотрицательные числа. Можно остановиться на остатке или продолжить деление после запятой.",
+        solveLabel: "Разобрать деление",
+        resultTitle: "Пошаговое деление",
+        resultNote: "Показывайте каждый этап: неполное делимое, цифру частного, вычитание и снос следующей цифры.",
+        primaryLabel: "Частное",
+        secondaryLabel: "Остаток",
+        showSecondary: true,
+        notes: [
+          ["Неполное делимое", "Берите слева минимальное число, которое уже можно делить на делитель."],
+          ["Цифра частного", "На каждом шаге подбираем максимальную цифру, чтобы произведение не превысило текущий фрагмент."],
+          ["Остаток или десятичная дробь", "Если число не делится нацело, можно остановиться на остатке или дописать нули после запятой."]
+        ]
+      }
     };
 
     function escapeTextMarkup(value) {
@@ -615,6 +759,22 @@
         throw new Error(`${label}: используйте только цифры без знака и дробной части.`);
       }
       return cleaned.replace(/^0+(?=\d)/, "") || "0";
+    }
+
+    function rankNameFromRight(position) {
+      const rankNames = [
+        "единиц",
+        "десятков",
+        "сотен",
+        "тысяч",
+        "десятков тысяч",
+        "сотен тысяч",
+        "миллионов",
+        "десятков миллионов",
+        "сотен миллионов",
+        "миллиардов"
+      ];
+      return rankNames[position] || `разряда ${position + 1}`;
     }
 
     function makeDivisionStep(title, explain, math, board) {
@@ -666,9 +826,342 @@
       `;
     }
 
+    function buildColumnArithmeticBoard({ width, carryRow = "", topRow, bottomRow, interimRows = [], finalRow = null, showSecondaryLine = false }) {
+      const normalize = (text) => String(text || "").padStart(width, " ");
+      const row = (text, kind = "") => `
+        <div class="column-arithmetic-row${kind ? ` column-arithmetic-row--${kind}` : ""}">${escapeTextMarkup(normalize(text))}</div>
+      `;
+
+      return `
+        <div class="column-arithmetic-board">
+          ${carryRow && carryRow.trim() ? row(carryRow, "carry") : ""}
+          ${row(topRow, "operand")}
+          ${row(bottomRow, "operand")}
+          <div class="column-arithmetic-line"></div>
+          ${interimRows.map((item) => row(item.text, item.kind || "partial")).join("")}
+          ${finalRow && showSecondaryLine ? '<div class="column-arithmetic-line column-arithmetic-line--secondary"></div>' : ""}
+          ${finalRow ? row(finalRow.text, finalRow.kind || "result") : ""}
+        </div>
+      `;
+    }
+
+    function emptyColumnMessages() {
+      const meta = columnOperationMeta[divisionState.operation];
+      return {
+        board: divisionState.operation === "divide"
+          ? "Введите делимое и делитель, чтобы показать деление в столбик."
+          : `Введите два числа, чтобы показать ${meta.readable} столбиком.`,
+        steps: `Введите числа и нажмите «${meta.solveLabel}».`
+      };
+    }
+
+    function updateColumnOperationUi() {
+      const meta = columnOperationMeta[divisionState.operation];
+      divisionElements.operationReadable.textContent = meta.readable;
+      divisionElements.leftLabel.textContent = meta.leftLabel;
+      divisionElements.rightLabel.textContent = meta.rightLabel;
+      divisionElements.dividend.setAttribute("aria-label", meta.leftLabel);
+      divisionElements.divisor.setAttribute("aria-label", meta.rightLabel);
+      divisionElements.builderNote.textContent = meta.builderNote;
+      divisionElements.solveLabel.textContent = meta.solveLabel;
+      divisionElements.resultTitle.textContent = meta.resultTitle;
+      divisionElements.resultNote.textContent = meta.resultNote;
+      divisionElements.primaryLabel.textContent = meta.primaryLabel;
+      divisionElements.secondaryLabel.textContent = meta.secondaryLabel || "Остаток";
+      divisionElements.secondaryRow.hidden = !meta.showSecondary;
+      divisionElements.options.hidden = divisionState.operation !== "divide";
+      [
+        [divisionElements.noteTitle1, divisionElements.noteText1],
+        [divisionElements.noteTitle2, divisionElements.noteText2],
+        [divisionElements.noteTitle3, divisionElements.noteText3]
+      ].forEach(([titleElement, textElement], index) => {
+        const note = meta.notes[index];
+        titleElement.textContent = note ? note[0] : "";
+        textElement.textContent = note ? note[1] : "";
+      });
+      divisionElements.operationButtons.forEach((button) => {
+        button.classList.toggle("active", button.dataset.columnOperation === divisionState.operation);
+      });
+      toggleDivisionPrecision();
+    }
+
+    function setColumnOperation(operation, rerender = true) {
+      divisionState.operation = operation;
+      updateColumnOperationUi();
+      if (rerender) {
+        handleDivisionSolve(new Event("submit"));
+      }
+    }
+
+    function buildLongAddition() {
+      const leftText = parseWholeNumberText(divisionElements.dividend.value, columnOperationMeta.add.leftLabel);
+      const rightText = parseWholeNumberText(divisionElements.divisor.value, columnOperationMeta.add.rightLabel);
+      const resultText = (BigInt(leftText) + BigInt(rightText)).toString();
+      const width = Math.max(leftText.length + 1, rightText.length + 1, resultText.length);
+      const maxDigits = Math.max(leftText.length, rightText.length);
+      const resultRow = Array(width).fill(" ");
+      const carries = Array(width).fill(" ");
+      const steps = [];
+      let carry = 0;
+
+      for (let offset = 0; offset < maxDigits; offset += 1) {
+        const leftDigit = leftText.length - 1 - offset >= 0 ? Number(leftText[leftText.length - 1 - offset]) : 0;
+        const rightDigit = rightText.length - 1 - offset >= 0 ? Number(rightText[rightText.length - 1 - offset]) : 0;
+        const incomingCarry = carry;
+        const total = leftDigit + rightDigit + incomingCarry;
+        const digit = total % 10;
+        carry = Math.trunc(total / 10);
+        const columnIndex = width - 1 - offset;
+        carries[columnIndex] = " ";
+        resultRow[columnIndex] = String(digit);
+        if (carry > 0 && columnIndex - 1 >= 0) {
+          carries[columnIndex - 1] = String(carry);
+        }
+
+        steps.push(makeDivisionStep(
+          `Шаг ${steps.length + 1}. Складываем разряд ${rankNameFromRight(offset)}`,
+          incomingCarry > 0
+            ? `В разряде ${rankNameFromRight(offset)} складываем ${leftDigit}, ${rightDigit} и перенос ${incomingCarry}.`
+            : `В разряде ${rankNameFromRight(offset)} складываем ${leftDigit} и ${rightDigit}.`,
+          divisionMathBlock([
+            `${leftDigit} + ${rightDigit}${incomingCarry ? ` + ${incomingCarry}` : ""} = ${total}`,
+            carry > 0
+              ? `Пишем ${digit}, ${carry} переносим в следующий разряд.`
+              : `Пишем ${digit}, переноса нет.`
+          ]),
+          buildColumnArithmeticBoard({
+            width,
+            carryRow: carries.join(""),
+            topRow: leftText,
+            bottomRow: `+${rightText}`,
+            finalRow: { text: resultRow.join(""), kind: "result" }
+          })
+        ));
+      }
+
+      if (carry > 0 && resultRow[0] === " ") {
+        resultRow[0] = String(carry);
+        carries[0] = " ";
+        steps.push(makeDivisionStep(
+          `Шаг ${steps.length + 1}. Записываем перенос в новый разряд`,
+          `После сложения старшего разряда остался перенос ${carry}, поэтому записываем его слева.`,
+          divisionMathBlock([
+            `Перенос = ${carry}`,
+            `Получаем ${resultText}`
+          ]),
+          buildColumnArithmeticBoard({
+            width,
+            topRow: leftText,
+            bottomRow: `+${rightText}`,
+            finalRow: { text: resultRow.join(""), kind: "result" }
+          })
+        ));
+      }
+
+      steps.push(makeDivisionStep(
+        "Ответ",
+        "Итоговое число составлено из всех полученных цифр суммы.",
+        divisionMathBlock([`${leftText} + ${rightText} = ${resultText}`]),
+        buildColumnArithmeticBoard({
+          width,
+          topRow: leftText,
+          bottomRow: `+${rightText}`,
+          finalRow: { text: resultText, kind: "result" }
+        })
+      ));
+
+      return {
+        equation: `${leftText} + ${rightText} = ${resultText}`,
+        quotient: resultText,
+        remainder: "",
+        steps
+      };
+    }
+
+    function buildLongSubtraction() {
+      const leftText = parseWholeNumberText(divisionElements.dividend.value, columnOperationMeta.subtract.leftLabel);
+      const rightText = parseWholeNumberText(divisionElements.divisor.value, columnOperationMeta.subtract.rightLabel);
+      if (BigInt(leftText) < BigInt(rightText)) {
+        throw new Error("Для вычитания столбиком в этой версии уменьшаемое должно быть не меньше вычитаемого.");
+      }
+
+      const resultText = (BigInt(leftText) - BigInt(rightText)).toString();
+      const width = Math.max(leftText.length + 1, rightText.length + 1, resultText.length + 1);
+      const maxDigits = Math.max(leftText.length, rightText.length);
+      const workingDigits = leftText.split("").map((digit) => Number(digit));
+      const resultRow = Array(width).fill(" ");
+      const steps = [];
+
+      for (let offset = 0; offset < maxDigits; offset += 1) {
+        const topIndex = workingDigits.length - 1 - offset;
+        const bottomIndex = rightText.length - 1 - offset;
+        let topDigit = topIndex >= 0 ? workingDigits[topIndex] : 0;
+        const originalTopDigit = topDigit;
+        const bottomDigit = bottomIndex >= 0 ? Number(rightText[bottomIndex]) : 0;
+        let explain = `В разряде ${rankNameFromRight(offset)} вычитаем ${bottomDigit} из ${originalTopDigit}.`;
+        const lines = [];
+
+        if (topDigit < bottomDigit) {
+          let borrowFrom = topIndex - 1;
+          while (borrowFrom >= 0 && workingDigits[borrowFrom] === 0) {
+            borrowFrom -= 1;
+          }
+          if (borrowFrom < 0) {
+            throw new Error("Не удалось выполнить заем в более старшем разряде.");
+          }
+          workingDigits[borrowFrom] -= 1;
+          for (let index = borrowFrom + 1; index < topIndex; index += 1) {
+            workingDigits[index] = 9;
+          }
+          topDigit += 10;
+          explain = borrowFrom < topIndex - 1
+            ? `В разряде ${rankNameFromRight(offset)} ${originalTopDigit} меньше ${bottomDigit}, поэтому занимаем единицу через цепочку нулей. После займа в текущем разряде получается ${topDigit}.`
+            : `В разряде ${rankNameFromRight(offset)} ${originalTopDigit} меньше ${bottomDigit}, поэтому занимаем единицу у следующего старшего разряда и получаем ${topDigit}.`;
+          lines.push(`${originalTopDigit} < ${bottomDigit}, выполняем заем.`);
+        }
+
+        const difference = topDigit - bottomDigit;
+        if (topIndex >= 0) {
+          workingDigits[topIndex] = difference;
+        }
+        resultRow[width - 1 - offset] = String(difference);
+        lines.push(`${topDigit} - ${bottomDigit} = ${difference}`);
+
+        steps.push(makeDivisionStep(
+          `Шаг ${steps.length + 1}. Вычитаем разряд ${rankNameFromRight(offset)}`,
+          explain,
+          divisionMathBlock(lines),
+          buildColumnArithmeticBoard({
+            width,
+            topRow: leftText,
+            bottomRow: `-${rightText}`,
+            finalRow: { text: resultRow.join(""), kind: "result" }
+          })
+        ));
+      }
+
+      steps.push(makeDivisionStep(
+        "Ответ",
+        "Итоговая разность собрана из цифр, полученных в каждом разряде.",
+        divisionMathBlock([`${leftText} - ${rightText} = ${resultText}`]),
+        buildColumnArithmeticBoard({
+          width,
+          topRow: leftText,
+          bottomRow: `-${rightText}`,
+          finalRow: { text: resultText, kind: "result" }
+        })
+      ));
+
+      return {
+        equation: `${leftText} - ${rightText} = ${resultText}`,
+        quotient: resultText,
+        remainder: "",
+        steps
+      };
+    }
+
+    function buildLongMultiplication() {
+      const leftText = parseWholeNumberText(divisionElements.dividend.value, columnOperationMeta.multiply.leftLabel);
+      const rightText = parseWholeNumberText(divisionElements.divisor.value, columnOperationMeta.multiply.rightLabel);
+      const resultText = (BigInt(leftText) * BigInt(rightText)).toString();
+      const multiplierDigits = rightText.split("").map((digit) => Number(digit));
+      const partialProducts = multiplierDigits
+        .slice()
+        .reverse()
+        .map((digit, offset) => {
+          const basePartial = (BigInt(leftText) * BigInt(digit)).toString();
+          const text = basePartial === "0"
+            ? "0".repeat(offset + 1)
+            : `${basePartial}${"0".repeat(offset)}`;
+          return { digit, offset, basePartial, text };
+        });
+      const width = Math.max(
+        leftText.length + 1,
+        rightText.length + 1,
+        resultText.length,
+        ...partialProducts.map((item) => item.text.length)
+      );
+      const steps = [];
+
+      partialProducts.forEach((item, index) => {
+        const rank = rankNameFromRight(item.offset);
+        const explain = item.offset === 0
+          ? `Умножаем первый множитель на цифру ${item.digit} из разряда единиц и записываем первую строку частичного произведения.`
+          : `Умножаем первый множитель на цифру ${item.digit} из разряда ${rank}. Поэтому строка сдвигается на ${item.offset} разряд${item.offset === 1 ? "" : item.offset < 5 ? "а" : "ов"} влево.`;
+        const lines = [
+          `${leftText} × ${item.digit} = ${item.basePartial}`,
+          item.offset === 0
+            ? `Сдвиг не нужен: ${item.text}`
+            : `Добавляем ${item.offset} нул${item.offset === 1 ? "ь" : item.offset < 5 ? "я" : "ей"} справа: ${item.text}`
+        ];
+
+        steps.push(makeDivisionStep(
+          `Шаг ${steps.length + 1}. Строим строку для разряда ${rank}`,
+          explain,
+          divisionMathBlock(lines),
+          buildColumnArithmeticBoard({
+            width,
+            topRow: leftText,
+            bottomRow: `×${rightText}`,
+            interimRows: partialProducts.slice(0, index + 1).map((partial) => ({
+              text: partial.text,
+              kind: "partial"
+            }))
+          })
+        ));
+      });
+
+      if (partialProducts.length > 1) {
+        steps.push(makeDivisionStep(
+          `Шаг ${steps.length + 1}. Складываем частичные произведения`,
+          "Когда все строки частичного произведения готовы, складываем их и получаем окончательный ответ.",
+          divisionMathBlock([
+            ...partialProducts.map((item) => item.text),
+            `${resultText}`
+          ]),
+          buildColumnArithmeticBoard({
+            width,
+            topRow: leftText,
+            bottomRow: `×${rightText}`,
+            interimRows: partialProducts.map((partial) => ({
+              text: partial.text,
+              kind: "partial"
+            })),
+            finalRow: { text: resultText, kind: "result" },
+            showSecondaryLine: true
+          })
+        ));
+      }
+
+      steps.push(makeDivisionStep(
+        "Ответ",
+        partialProducts.length > 1
+          ? "Итоговое произведение получилось после сложения всех частичных строк."
+          : "При умножении на одну цифру ответ совпадает с единственной строкой частичного произведения.",
+        divisionMathBlock([`${leftText} × ${rightText} = ${resultText}`]),
+        buildColumnArithmeticBoard({
+          width,
+          topRow: leftText,
+          bottomRow: `×${rightText}`,
+          interimRows: partialProducts.length > 1
+            ? partialProducts.map((partial) => ({ text: partial.text, kind: "partial" }))
+            : [],
+          finalRow: { text: resultText, kind: "result" },
+          showSecondaryLine: partialProducts.length > 1
+        })
+      ));
+
+      return {
+        equation: `${leftText} × ${rightText} = ${resultText}`,
+        quotient: resultText,
+        remainder: "",
+        steps
+      };
+    }
+
     function buildLongDivision() {
-      const dividendText = parseWholeNumberText(divisionElements.dividend.value, "Делимое");
-      const divisorText = parseWholeNumberText(divisionElements.divisor.value, "Делитель");
+      const dividendText = parseWholeNumberText(divisionElements.dividend.value, columnOperationMeta.divide.leftLabel);
+      const divisorText = parseWholeNumberText(divisionElements.divisor.value, columnOperationMeta.divide.rightLabel);
       const divisor = BigInt(divisorText);
       if (divisor === 0n) {
         throw new Error("Делитель не может быть равен нулю.");
@@ -683,7 +1176,6 @@
       let current = 0n;
       let remainder = 0n;
       let quotientStarted = false;
-      let lastEndPos = 0;
       let stepNumber = 0;
       const dividendRow = () => createDivisionBoardRow(displayDividend, displayDividend.length - 1, "dividend");
 
@@ -700,7 +1192,6 @@
         const product = quotientDigit * divisor;
         remainder = current - product;
         quotientParts.push(quotientDigit.toString());
-        lastEndPos = index;
         stepNumber += 1;
 
         const partialText = current.toString();
@@ -751,12 +1242,12 @@
           const product = quotientDigit * divisor;
           remainder = current - product;
           quotientParts.push(quotientDigit.toString());
-          lastEndPos = dividendText.length + 1 + decimalIndex;
           stepNumber += 1;
 
           const partialText = current.toString();
           const productText = product.toString();
           const remainderText = remainder.toString();
+          const lastEndPos = dividendText.length + 1 + decimalIndex;
           const lines = [
             `${partialText} : ${divisorText} = ${quotientDigit}`,
             `${quotientDigit} × ${divisorText} = ${productText}`,
@@ -837,11 +1328,27 @@
       };
     }
 
+    function buildColumnOperation() {
+      if (divisionState.operation === "add") {
+        return buildLongAddition();
+      }
+      if (divisionState.operation === "subtract") {
+        return buildLongSubtraction();
+      }
+      if (divisionState.operation === "multiply") {
+        return buildLongMultiplication();
+      }
+      return buildLongDivision();
+    }
+
     function renderDivisionSolution() {
       if (divisionState.steps.length === 0) {
-        divisionElements.equation.textContent = "";
-        divisionElements.board.innerHTML = `<div class="empty-state"><p>Введите делимое и делитель, чтобы показать деление в столбик.</p></div>`;
-        divisionElements.steps.innerHTML = `<div class="empty-state"><p>Введите делимое и делитель, а затем нажмите «Разобрать деление».</p></div>`;
+        const empty = emptyColumnMessages();
+        divisionElements.equation.innerHTML = "";
+        divisionElements.board.innerHTML = `<div class="empty-state"><p>${escapeTextMarkup(empty.board)}</p></div>`;
+        divisionElements.steps.innerHTML = `<div class="empty-state"><p>${escapeTextMarkup(empty.steps)}</p></div>`;
+        divisionElements.quotientPreview.textContent = "—";
+        divisionElements.remainderPreview.textContent = "—";
         divisionElements.stepMeter.textContent = "Шаги появятся после решения";
         divisionElements.stepMeterBottom.textContent = "Шаги появятся после решения";
         divisionElements.prevStep.disabled = true;
@@ -855,17 +1362,53 @@
 
       const visibleSteps = divisionState.steps.slice(0, divisionState.visibleSteps);
       const currentStep = visibleSteps[visibleSteps.length - 1];
-      divisionElements.equation.textContent = divisionState.equation;
-      divisionElements.quotientPreview.textContent = divisionState.quotient;
-      divisionElements.remainderPreview.textContent = divisionState.remainder;
-      divisionElements.board.innerHTML = currentStep.board;
+      const hideAnswers = divisionElements.hideAnswers.checked;
+      divisionElements.equation.innerHTML = buildSpoilerMarkup(
+        "column-equation",
+        `<span class="division-equation-answer">${escapeTextMarkup(divisionState.equation)}</span>`,
+        "Нажмите, чтобы открыть итоговое равенство",
+        "equation",
+        hideAnswers,
+        divisionState.revealed
+      );
+      divisionElements.quotientPreview.innerHTML = buildSpoilerMarkup(
+        "column-quotient",
+        `<span>${escapeTextMarkup(divisionState.quotient)}</span>`,
+        `Нажмите, чтобы открыть: ${divisionElements.primaryLabel.textContent.toLowerCase()}`,
+        "inline",
+        hideAnswers,
+        divisionState.revealed
+      );
+      divisionElements.remainderPreview.innerHTML = buildSpoilerMarkup(
+        "column-remainder",
+        `<span>${escapeTextMarkup(divisionState.remainder || "—")}</span>`,
+        `Нажмите, чтобы открыть: ${divisionElements.secondaryLabel.textContent.toLowerCase()}`,
+        "inline",
+        hideAnswers,
+        divisionState.revealed
+      );
+      divisionElements.board.innerHTML = buildSpoilerMarkup(
+        `column-board-${divisionState.visibleSteps - 1}`,
+        currentStep.board,
+        "Нажмите, чтобы открыть запись столбиком",
+        "board",
+        hideAnswers,
+        divisionState.revealed
+      );
       divisionElements.steps.innerHTML = visibleSteps.map((step, index) => `
         <article class="step-card">
           <div class="step-index">${index + 1}</div>
           <div class="step-content">
             <h3 class="step-title">${step.title}</h3>
             <p class="step-explain">${step.explain}</p>
-            <div class="step-math">${step.math}</div>
+            ${buildSpoilerMarkup(
+              `column-step-${index}`,
+              `<div class="step-math">${step.math}</div>`,
+              step.title === "Ответ" ? "Нажмите, чтобы открыть ответ" : "Нажмите, чтобы открыть вычисления",
+              "block",
+              hideAnswers,
+              divisionState.revealed
+            )}
           </div>
         </article>
       `).join("");
@@ -887,7 +1430,7 @@
       divisionState.steps = [];
       divisionState.visibleSteps = 0;
       divisionState.equation = "";
-      divisionElements.equation.textContent = "";
+      divisionElements.equation.innerHTML = "";
       divisionElements.board.innerHTML = `<div class="empty-state"><p>${escapeTextMarkup(message)}</p></div>`;
       divisionElements.steps.innerHTML = `<p class="error">${escapeTextMarkup(message)}</p>`;
       divisionElements.quotientPreview.textContent = "—";
@@ -905,12 +1448,13 @@
     function handleDivisionSolve(event) {
       event.preventDefault();
       try {
-        const result = buildLongDivision();
+        const result = buildColumnOperation();
         divisionState.steps = result.steps;
         divisionState.visibleSteps = Math.min(1, result.steps.length);
         divisionState.equation = result.equation;
         divisionState.quotient = result.quotient;
         divisionState.remainder = result.remainder;
+        divisionState.revealed = {};
         renderDivisionSolution();
       } catch (error) {
         renderDivisionError(error.message);
@@ -918,11 +1462,17 @@
     }
 
     function toggleDivisionPrecision() {
-      divisionElements.precision.disabled = !divisionElements.continueDecimals.checked;
+      divisionElements.precision.disabled = divisionState.operation !== "divide" || !divisionElements.continueDecimals.checked;
     }
 
     divisionElements.form.addEventListener("submit", handleDivisionSolve);
     divisionElements.continueDecimals.addEventListener("change", toggleDivisionPrecision);
+    divisionElements.hideAnswers.addEventListener("change", renderDivisionSolution);
+    divisionElements.operationButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        setColumnOperation(button.dataset.columnOperation);
+      });
+    });
 
     [
       divisionElements.prevStep,
@@ -954,15 +1504,583 @@
       });
     });
 
-    toggleDivisionPrecision();
+    [
+      divisionElements.steps,
+      divisionElements.equation,
+      divisionElements.board,
+      divisionElements.summaryCard
+    ].forEach((container) => {
+      container.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-spoiler-button]");
+        if (!button) {
+          return;
+        }
+        divisionState.revealed[button.dataset.spoilerKey] = true;
+        renderDivisionSolution();
+      });
+    });
+
+    setColumnOperation("divide", false);
     handleDivisionSolve(new Event("submit"));
+
+    const percentState = {
+      mode: "percentOfNumber",
+      steps: [],
+      visibleSteps: 0,
+      equation: "",
+      answer: "—",
+      revealed: {}
+    };
+
+    const percentElements = {
+      form: document.getElementById("percentForm"),
+      builderNote: document.getElementById("percentBuilderNote"),
+      modeReadable: document.getElementById("percentModeReadable"),
+      modeButtons: document.querySelectorAll("[data-percent-mode]"),
+      leftLabel: document.getElementById("percentLeftLabel"),
+      rightLabel: document.getElementById("percentRightLabel"),
+      value: document.getElementById("percentValue"),
+      rate: document.getElementById("percentRate"),
+      hintTitle: document.getElementById("percentHintTitle"),
+      hintText: document.getElementById("percentHintText"),
+      hideAnswers: document.getElementById("percentHideAnswers"),
+      answerLabel: document.getElementById("percentAnswerLabel"),
+      answerPreview: document.getElementById("percentAnswerPreview"),
+      summaryCard: document.getElementById("percentSummaryCard"),
+      solveLabel: document.getElementById("percentSolveLabel"),
+      resultTitle: document.getElementById("percentResultTitle"),
+      resultNote: document.getElementById("percentResultNote"),
+      noteTitle1: document.getElementById("percentNoteTitle1"),
+      noteText1: document.getElementById("percentNoteText1"),
+      noteTitle2: document.getElementById("percentNoteTitle2"),
+      noteText2: document.getElementById("percentNoteText2"),
+      noteTitle3: document.getElementById("percentNoteTitle3"),
+      noteText3: document.getElementById("percentNoteText3"),
+      equation: document.getElementById("percentEquation"),
+      steps: document.getElementById("percentSteps"),
+      stepMeter: document.getElementById("percentStepMeter"),
+      stepMeterBottom: document.getElementById("percentStepMeterBottom"),
+      prevStep: document.getElementById("percentPrevStep"),
+      nextStep: document.getElementById("percentNextStep"),
+      showAll: document.getElementById("percentShowAll"),
+      prevStepBottom: document.getElementById("percentPrevStepBottom"),
+      nextStepBottom: document.getElementById("percentNextStepBottom"),
+      showAllBottom: document.getElementById("percentShowAllBottom")
+    };
+
+    const percentModeMeta = {
+      percentOfNumber: {
+        readable: "процент от числа",
+        leftLabel: "Число",
+        rightLabel: "Процент",
+        builderNote: "Этот режим нужен, когда известно число и нужно найти, какую часть от него составляет заданный процент.",
+        hintTitle: "Как выбрать этот режим",
+        hintText: "Подходит для задач вроде «найдите 15% от 240» или «сколько будет 7,5% от 80».",
+        solveLabel: "Разобрать процент от числа",
+        resultTitle: "Пошаговый разбор: процент от числа",
+        resultNote: "Сначала переводим проценты в долю от 100, затем умножаем число на найденную долю.",
+        answerLabel: "Процент от числа",
+        notes: [
+          ["Процент — это сотая доля", "Любой процент удобно сначала представить как дробь со знаменателем 100 или как десятичную дробь."],
+          ["Находим часть", "Чтобы найти процент от числа, нужно умножить число на долю, которую задает этот процент."],
+          ["Проверка", "Если процент меньше 100, ответ меньше исходного числа. Если процент больше 100, ответ будет больше числа."]
+        ]
+      },
+      numberByPercent: {
+        readable: "число по проценту",
+        leftLabel: "Известная часть",
+        rightLabel: "Процент этой части",
+        builderNote: "Этот режим нужен, когда часть уже известна и известно, сколько процентов она составляет от целого числа.",
+        hintTitle: "Как выбрать этот режим",
+        hintText: "Подходит для задач вроде «36 — это 15% от какого числа?» или «12,5 составляет 25% от какого числа?».",
+        solveLabel: "Разобрать число по проценту",
+        resultTitle: "Пошаговый разбор: число по проценту",
+        resultNote: "Сначала переводим проценты в долю, затем делим известную часть на эту долю и получаем целое число.",
+        answerLabel: "Искомое число",
+        notes: [
+          ["Процент — это сотая доля", "Сначала превращаем процент в долю от единицы: например, 15% = 0,15."],
+          ["Составляем равенство", "Если часть составляет p% от целого, то часть равна целому, умноженному на p/100."],
+          ["Делим на долю", "Чтобы восстановить целое, нужно разделить известную часть на долю, которую она составляет."]
+        ]
+      }
+    };
+
+    function absBigInt(value) {
+      return value < 0n ? -value : value;
+    }
+
+    function gcdBigInt(a, b) {
+      let x = absBigInt(a);
+      let y = absBigInt(b);
+      while (y !== 0n) {
+        const temp = y;
+        y = x % y;
+        x = temp;
+      }
+      return x || 1n;
+    }
+
+    function normalizeBigFraction(frac) {
+      if (frac.den < 0n) {
+        return { num: -frac.num, den: -frac.den };
+      }
+      return frac;
+    }
+
+    function reduceBigFraction(frac) {
+      const normalized = normalizeBigFraction(frac);
+      const divisor = gcdBigInt(normalized.num, normalized.den);
+      return {
+        num: normalized.num / divisor,
+        den: normalized.den / divisor
+      };
+    }
+
+    function multiplyBigFractions(left, right) {
+      return reduceBigFraction({
+        num: left.num * right.num,
+        den: left.den * right.den
+      });
+    }
+
+    function divideBigFractions(left, right) {
+      if (right.num === 0n) {
+        throw new Error("Нельзя делить на нулевую долю.");
+      }
+      return reduceBigFraction({
+        num: left.num * right.den,
+        den: left.den * right.num
+      });
+    }
+
+    function toRussianDecimalText(value) {
+      return String(value).replace(".", ",");
+    }
+
+    function parsePositiveDecimalText(value, label) {
+      const cleaned = String(value).trim().replace(/\s+/g, "").replace(",", ".");
+      if (!/^\d+(?:\.\d+)?$/.test(cleaned)) {
+        throw new Error(`${label}: используйте только неотрицательные числа без знака процента.`);
+      }
+      const [rawInteger, rawFraction = ""] = cleaned.split(".");
+      const integerPart = rawInteger.replace(/^0+(?=\d)/, "") || "0";
+      const fractionPart = rawFraction.replace(/0+$/, "");
+      const normalizedText = fractionPart ? `${integerPart}.${fractionPart}` : integerPart;
+      const numeratorText = `${integerPart}${fractionPart}` || "0";
+      const fraction = reduceBigFraction({
+        num: BigInt(numeratorText),
+        den: fractionPart ? 10n ** BigInt(fractionPart.length) : 1n
+      });
+      return {
+        text: normalizedText,
+        display: toRussianDecimalText(normalizedText),
+        frac: fraction
+      };
+    }
+
+    function bigFractionToText(frac) {
+      const normalized = reduceBigFraction(frac);
+      if (normalized.den === 1n) {
+        return normalized.num.toString();
+      }
+      return `${normalized.num}/${normalized.den}`;
+    }
+
+    function bigFractionToFiniteDecimalText(frac) {
+      const normalized = reduceBigFraction(frac);
+      let denominator = normalized.den;
+      let twos = 0;
+      let fives = 0;
+      while (denominator % 2n === 0n) {
+        denominator /= 2n;
+        twos += 1;
+      }
+      while (denominator % 5n === 0n) {
+        denominator /= 5n;
+        fives += 1;
+      }
+      if (denominator !== 1n) {
+        return null;
+      }
+      const scale = Math.max(twos, fives);
+      let numerator = normalized.num;
+      if (twos < scale) {
+        numerator *= 5n ** BigInt(scale - twos);
+      }
+      if (fives < scale) {
+        numerator *= 2n ** BigInt(scale - fives);
+      }
+      const sign = numerator < 0n ? "-" : "";
+      const digits = absBigInt(numerator).toString().padStart(scale + 1, "0");
+      const integerPart = scale === 0 ? digits : digits.slice(0, -scale) || "0";
+      const fractionPart = scale === 0 ? "" : digits.slice(-scale).replace(/0+$/, "");
+      return fractionPart ? `${sign}${integerPart}.${fractionPart}` : `${sign}${integerPart}`;
+    }
+
+    function bigFractionToApproxDecimalText(frac, precision = 6) {
+      const normalized = reduceBigFraction(frac);
+      const sign = normalized.num < 0n ? "-" : "";
+      let numerator = absBigInt(normalized.num);
+      const integerPart = numerator / normalized.den;
+      let remainder = numerator % normalized.den;
+      if (remainder === 0n) {
+        return `${sign}${integerPart.toString()}`;
+      }
+      let digits = "";
+      for (let index = 0; index < precision; index += 1) {
+        remainder *= 10n;
+        digits += (remainder / normalized.den).toString();
+        remainder %= normalized.den;
+      }
+      return `${sign}${integerPart.toString()}.${digits}${remainder !== 0n ? "…" : ""}`;
+    }
+
+    function describePercentResult(frac) {
+      const normalized = reduceBigFraction(frac);
+      const finite = bigFractionToFiniteDecimalText(normalized);
+      if (finite !== null) {
+        return {
+          primary: toRussianDecimalText(finite),
+          equationValue: toRussianDecimalText(finite),
+          exactLine: normalized.den === 1n ? null : `${bigFractionToText(normalized)} = ${toRussianDecimalText(finite)}`,
+          approximationLine: null
+        };
+      }
+      const exactFraction = bigFractionToText(normalized);
+      const approximate = toRussianDecimalText(bigFractionToApproxDecimalText(normalized, 6));
+      return {
+        primary: `≈ ${approximate}`,
+        equationValue: `${exactFraction} ≈ ${approximate}`,
+        exactLine: `Точное значение: ${exactFraction}`,
+        approximationLine: `Приближенно: ${approximate}`
+      };
+    }
+
+    function percentMathBlock(lines) {
+      return divisionMathBlock(lines);
+    }
+
+    function buildPercentOfNumberSolution(valueInput, rateInput) {
+      const share = divideBigFractions(rateInput.frac, { num: 100n, den: 1n });
+      const shareText = toRussianDecimalText(bigFractionToFiniteDecimalText(share) || bigFractionToApproxDecimalText(share, 8));
+      const result = multiplyBigFractions(valueInput.frac, share);
+      const resultInfo = describePercentResult(result);
+      const steps = [
+        makeDivisionStep(
+          "Шаг 1. Определяем тип задачи",
+          `Нужно найти ${rateInput.display}% от числа ${valueInput.display}. Это значит, что мы ищем часть числа, соответствующую заданному проценту.`,
+          percentMathBlock([`Найти ${rateInput.display}% от ${valueInput.display}`]),
+          ""
+        ),
+        makeDivisionStep(
+          "Шаг 2. Переводим проценты в долю",
+          "Процент — это сотая доля. Поэтому делим число процентов на 100 и получаем долю от единицы.",
+          percentMathBlock([
+            `${rateInput.display}% = ${rateInput.display} / 100`,
+            `${rateInput.display} / 100 = ${shareText}`
+          ]),
+          ""
+        ),
+        makeDivisionStep(
+          "Шаг 3. Умножаем число на найденную долю",
+          "Чтобы найти нужную часть, умножаем исходное число на долю, которую задает процент.",
+          percentMathBlock([
+            `${valueInput.display} × ${shareText} = ${resultInfo.equationValue}`,
+            ...(resultInfo.exactLine ? [resultInfo.exactLine] : [])
+          ]),
+          ""
+        ),
+        makeDivisionStep(
+          "Ответ",
+          "Мы нашли нужную часть от числа.",
+          percentMathBlock([
+            `${rateInput.display}% от ${valueInput.display} = ${resultInfo.equationValue}`
+          ]),
+          ""
+        )
+      ];
+
+      return {
+        equation: `${rateInput.display}% от ${valueInput.display} = ${resultInfo.equationValue}`,
+        answer: resultInfo.primary,
+        steps
+      };
+    }
+
+    function buildNumberByPercentSolution(valueInput, rateInput) {
+      if (rateInput.frac.num === 0n) {
+        throw new Error("Процент этой части не может быть равен 0, иначе восстановить целое число нельзя.");
+      }
+      const share = divideBigFractions(rateInput.frac, { num: 100n, den: 1n });
+      const shareText = toRussianDecimalText(bigFractionToFiniteDecimalText(share) || bigFractionToApproxDecimalText(share, 8));
+      const result = divideBigFractions(valueInput.frac, share);
+      const resultInfo = describePercentResult(result);
+      const steps = [
+        makeDivisionStep(
+          "Шаг 1. Определяем тип задачи",
+          `Известно, что число ${valueInput.display} составляет ${rateInput.display}% от целого. Значит, нужно восстановить все число по его части.`,
+          percentMathBlock([`${valueInput.display} — это ${rateInput.display}% от неизвестного числа`]),
+          ""
+        ),
+        makeDivisionStep(
+          "Шаг 2. Переводим проценты в долю",
+          "Процент переводим в долю от единицы: для этого делим количество процентов на 100.",
+          percentMathBlock([
+            `${rateInput.display}% = ${rateInput.display} / 100`,
+            `${rateInput.display} / 100 = ${shareText}`
+          ]),
+          ""
+        ),
+        makeDivisionStep(
+          "Шаг 3. Составляем равенство",
+          "Если часть составляет указанную долю от целого, то часть равна целому числу, умноженному на эту долю.",
+          percentMathBlock([
+            `${valueInput.display} = x × ${shareText}`
+          ]),
+          ""
+        ),
+        makeDivisionStep(
+          "Шаг 4. Выражаем целое число",
+          "Чтобы найти целое, делим известную часть на долю, которую она составляет.",
+          percentMathBlock([
+            `x = ${valueInput.display} / ${shareText}`
+          ]),
+          ""
+        ),
+        makeDivisionStep(
+          "Шаг 5. Выполняем вычисление",
+          resultInfo.approximationLine
+            ? "Сначала записываем точное значение, а затем показываем десятичное приближение."
+            : "Выполняем деление и получаем искомое число.",
+          percentMathBlock([
+            `x = ${resultInfo.equationValue}`,
+            ...(resultInfo.exactLine ? [resultInfo.exactLine] : []),
+            ...(resultInfo.approximationLine ? [resultInfo.approximationLine] : [])
+          ]),
+          ""
+        ),
+        makeDivisionStep(
+          "Ответ",
+          "Мы восстановили целое число по известной части и ее проценту.",
+          percentMathBlock([
+            `${valueInput.display} — это ${rateInput.display}% от ${resultInfo.equationValue}`
+          ]),
+          ""
+        )
+      ];
+
+      return {
+        equation: `${valueInput.display} — это ${rateInput.display}% от ${resultInfo.equationValue}`,
+        answer: resultInfo.primary,
+        steps
+      };
+    }
+
+    function buildPercentOperation() {
+      const valueInput = parsePositiveDecimalText(percentElements.value.value, percentModeMeta[percentState.mode].leftLabel);
+      const rateInput = parsePositiveDecimalText(percentElements.rate.value, percentModeMeta[percentState.mode].rightLabel);
+      if (percentState.mode === "numberByPercent") {
+        return buildNumberByPercentSolution(valueInput, rateInput);
+      }
+      return buildPercentOfNumberSolution(valueInput, rateInput);
+    }
+
+    function updatePercentModeUi() {
+      const meta = percentModeMeta[percentState.mode];
+      percentElements.builderNote.textContent = meta.builderNote;
+      percentElements.modeReadable.textContent = meta.readable;
+      percentElements.leftLabel.textContent = meta.leftLabel;
+      percentElements.rightLabel.textContent = meta.rightLabel;
+      percentElements.value.setAttribute("aria-label", meta.leftLabel);
+      percentElements.rate.setAttribute("aria-label", meta.rightLabel);
+      percentElements.hintTitle.textContent = meta.hintTitle;
+      percentElements.hintText.textContent = meta.hintText;
+      percentElements.answerLabel.textContent = meta.answerLabel;
+      percentElements.solveLabel.textContent = meta.solveLabel;
+      percentElements.resultTitle.textContent = meta.resultTitle;
+      percentElements.resultNote.textContent = meta.resultNote;
+      [
+        [percentElements.noteTitle1, percentElements.noteText1],
+        [percentElements.noteTitle2, percentElements.noteText2],
+        [percentElements.noteTitle3, percentElements.noteText3]
+      ].forEach(([titleElement, textElement], index) => {
+        const note = meta.notes[index];
+        titleElement.textContent = note ? note[0] : "";
+        textElement.textContent = note ? note[1] : "";
+      });
+      percentElements.modeButtons.forEach((button) => {
+        button.classList.toggle("active", button.dataset.percentMode === percentState.mode);
+      });
+    }
+
+    function setPercentMode(mode, rerender = true) {
+      percentState.mode = mode;
+      updatePercentModeUi();
+      if (rerender) {
+        handlePercentSolve(new Event("submit"));
+      }
+    }
+
+    function renderPercentSolution() {
+      if (percentState.steps.length === 0) {
+        percentElements.equation.innerHTML = "";
+        percentElements.steps.innerHTML = `<div class="empty-state"><p>Выберите тип задачи с процентами, введите значения и нажмите «${percentModeMeta[percentState.mode].solveLabel}».</p></div>`;
+        percentElements.answerPreview.textContent = "—";
+        percentElements.stepMeter.textContent = "Шаги появятся после решения";
+        percentElements.stepMeterBottom.textContent = "Шаги появятся после решения";
+        percentElements.prevStep.disabled = true;
+        percentElements.nextStep.disabled = true;
+        percentElements.showAll.disabled = true;
+        percentElements.prevStepBottom.disabled = true;
+        percentElements.nextStepBottom.disabled = true;
+        percentElements.showAllBottom.disabled = true;
+        return;
+      }
+
+      const visibleSteps = percentState.steps.slice(0, percentState.visibleSteps);
+      const hideAnswers = percentElements.hideAnswers.checked;
+      percentElements.equation.innerHTML = buildSpoilerMarkup(
+        "percent-equation",
+        `<span class="division-equation-answer">${escapeTextMarkup(percentState.equation)}</span>`,
+        "Нажмите, чтобы открыть итоговое равенство",
+        "equation",
+        hideAnswers,
+        percentState.revealed
+      );
+      percentElements.answerPreview.innerHTML = buildSpoilerMarkup(
+        "percent-answer",
+        `<span>${escapeTextMarkup(percentState.answer)}</span>`,
+        "Нажмите, чтобы открыть ответ",
+        "inline",
+        hideAnswers,
+        percentState.revealed
+      );
+      percentElements.steps.innerHTML = visibleSteps.map((step, index) => `
+        <article class="step-card">
+          <div class="step-index">${index + 1}</div>
+          <div class="step-content">
+            <h3 class="step-title">${step.title}</h3>
+            <p class="step-explain">${step.explain}</p>
+            ${buildSpoilerMarkup(
+              `percent-step-${index}`,
+              `<div class="step-math">${step.math}</div>`,
+              step.title === "Ответ" ? "Нажмите, чтобы открыть ответ" : "Нажмите, чтобы открыть вычисления",
+              "block",
+              hideAnswers,
+              percentState.revealed
+            )}
+          </div>
+        </article>
+      `).join("");
+
+      const meterText = `Показано ${percentState.visibleSteps} из ${percentState.steps.length}`;
+      const prevDisabled = percentState.visibleSteps <= 1;
+      const nextDisabled = percentState.visibleSteps >= percentState.steps.length;
+      percentElements.stepMeter.textContent = meterText;
+      percentElements.stepMeterBottom.textContent = meterText;
+      percentElements.prevStep.disabled = prevDisabled;
+      percentElements.nextStep.disabled = nextDisabled;
+      percentElements.showAll.disabled = nextDisabled;
+      percentElements.prevStepBottom.disabled = prevDisabled;
+      percentElements.nextStepBottom.disabled = nextDisabled;
+      percentElements.showAllBottom.disabled = nextDisabled;
+    }
+
+    function renderPercentError(message) {
+      percentState.steps = [];
+      percentState.visibleSteps = 0;
+      percentState.equation = "";
+      percentElements.equation.innerHTML = "";
+      percentElements.steps.innerHTML = `<p class="error">${escapeTextMarkup(message)}</p>`;
+      percentElements.answerPreview.textContent = "—";
+      percentElements.stepMeter.textContent = "Исправьте данные в примере";
+      percentElements.stepMeterBottom.textContent = "Исправьте данные в примере";
+      percentElements.prevStep.disabled = true;
+      percentElements.nextStep.disabled = true;
+      percentElements.showAll.disabled = true;
+      percentElements.prevStepBottom.disabled = true;
+      percentElements.nextStepBottom.disabled = true;
+      percentElements.showAllBottom.disabled = true;
+    }
+
+    function handlePercentSolve(event) {
+      event.preventDefault();
+      try {
+        const result = buildPercentOperation();
+        percentState.steps = result.steps;
+        percentState.visibleSteps = Math.min(1, result.steps.length);
+        percentState.equation = result.equation;
+        percentState.answer = result.answer;
+        percentState.revealed = {};
+        renderPercentSolution();
+      } catch (error) {
+        renderPercentError(error.message);
+      }
+    }
+
+    percentElements.form.addEventListener("submit", handlePercentSolve);
+    percentElements.hideAnswers.addEventListener("change", renderPercentSolution);
+    percentElements.modeButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        setPercentMode(button.dataset.percentMode);
+      });
+    });
+
+    [
+      percentElements.prevStep,
+      percentElements.prevStepBottom
+    ].forEach((button) => {
+      button.addEventListener("click", () => {
+        percentState.visibleSteps = Math.max(1, percentState.visibleSteps - 1);
+        renderPercentSolution();
+      });
+    });
+
+    [
+      percentElements.nextStep,
+      percentElements.nextStepBottom
+    ].forEach((button) => {
+      button.addEventListener("click", () => {
+        percentState.visibleSteps = Math.min(percentState.steps.length, percentState.visibleSteps + 1);
+        renderPercentSolution();
+      });
+    });
+
+    [
+      percentElements.showAll,
+      percentElements.showAllBottom
+    ].forEach((button) => {
+      button.addEventListener("click", () => {
+        percentState.visibleSteps = percentState.steps.length;
+        renderPercentSolution();
+      });
+    });
+
+    [
+      percentElements.steps,
+      percentElements.equation,
+      percentElements.summaryCard
+    ].forEach((container) => {
+      container.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-spoiler-button]");
+        if (!button) {
+          return;
+        }
+        percentState.revealed[button.dataset.spoilerKey] = true;
+        renderPercentSolution();
+      });
+    });
+
+    setPercentMode("percentOfNumber", false);
+    handlePercentSolve(new Event("submit"));
 
     const viewButtons = document.querySelectorAll("[data-view]");
     const viewSections = document.querySelectorAll("[data-view-section]");
     const subtitle = document.querySelector(".subtitle");
     const subtitles = {
       fractions: "Дроби: сложение, вычитание, умножение и деление.",
-      longDivision: "Деление в столбик: неполное делимое, цифра частного, вычитание и остаток.",
+      percents: "Проценты: процент от числа и число по известному проценту.",
+      longDivision: "Столбик: сложение, вычитание, умножение и деление по школьной записи.",
       problems: "Задачи: условие, рисунок и пошаговые пояснения."
     };
 

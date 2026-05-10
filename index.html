@@ -15,7 +15,8 @@
       </div>
       <nav class="mode-tabs" aria-label="Разделы тренажера">
         <button class="active" type="button" data-view="fractions">Дроби</button>
-        <button type="button" data-view="longDivision">Деление в столбик</button>
+        <button type="button" data-view="percents">Проценты</button>
+        <button type="button" data-view="longDivision">Столбик</button>
         <button type="button" data-view="problems">Задачи</button>
         <button type="button" disabled>Уравнения</button>
         <button type="button" disabled>Информатика</button>
@@ -93,6 +94,10 @@
           <label class="toggle">
             <span>Выделять целую часть в ответе</span>
             <input id="showMixed" type="checkbox" checked>
+          </label>
+          <label class="toggle">
+            <span>Скрывать вычисления и ответы</span>
+            <input id="fractionHideAnswers" type="checkbox">
           </label>
         </div>
 
@@ -184,27 +189,185 @@
       </div>
     </section>
 
-    <section class="view-section" id="longDivisionView" data-view-section="longDivision" hidden>
-      <div class="workspace division-workspace" aria-label="Тренажер деления в столбик">
-        <form class="panel builder" id="longDivisionForm">
+    <section class="view-section" id="percentsView" data-view-section="percents" hidden>
+      <div class="workspace" aria-label="Рабочая область процентов">
+        <form class="panel builder" id="percentForm">
           <div>
-            <h2 class="panel-title">Конструктор примера</h2>
-            <p class="panel-note">Только целые неотрицательные числа. Можно остановиться на остатке или продолжить деление после запятой.</p>
+            <h2 class="panel-title">Тренажер процентов</h2>
+            <p class="panel-note" id="percentBuilderNote">Сначала выберите тип задачи: найти процент от числа или восстановить число по известному проценту.</p>
+          </div>
+
+          <div class="guide-card-grid">
+            <article class="guide-card">
+              <strong>Процент от числа</strong>
+              <span>Этот режим нужен, когда известно целое число и нужно найти его часть: например, 15% от 240.</span>
+            </article>
+            <article class="guide-card">
+              <strong>Число по проценту</strong>
+              <span>Этот режим нужен, когда часть уже известна и нужно восстановить целое: например, 36 — это 15% от какого числа.</span>
+            </article>
+          </div>
+
+          <div class="fraction-row">
+            <div class="row-label">
+              <span>Что ищем</span>
+              <span id="percentModeReadable" class="muted">процент от числа</span>
+            </div>
+            <div class="percent-mode-grid" role="group" aria-label="Выбор типа задачи с процентами">
+              <button class="percent-mode-btn active" type="button" data-percent-mode="percentOfNumber">Найти процент от числа</button>
+              <button class="percent-mode-btn" type="button" data-percent-mode="numberByPercent">Найти число по проценту</button>
+            </div>
           </div>
 
           <div class="division-input-grid">
             <label class="field-group compact-field">
-              <span>Делимое</span>
+              <span id="percentLeftLabel">Число</span>
+              <input id="percentValue" class="text-input" type="text" inputmode="decimal" value="240" placeholder="Например, 240" aria-label="Число">
+            </label>
+
+            <label class="field-group compact-field">
+              <span id="percentRightLabel">Процент</span>
+              <input id="percentRate" class="text-input" type="text" inputmode="decimal" value="15" placeholder="Например, 15" aria-label="Процент">
+            </label>
+          </div>
+
+          <div class="guide-card guide-card--accent">
+            <strong id="percentHintTitle">Как это понять</strong>
+            <span id="percentHintText">Если нужно найти часть от известного числа, выбирайте первый режим. Если известна часть и её процент, выбирайте второй.</span>
+          </div>
+
+          <div class="options" aria-label="Настройки решения процентов">
+            <label class="toggle">
+              <span>Скрывать вычисления и ответы</span>
+              <input id="percentHideAnswers" type="checkbox">
+            </label>
+          </div>
+
+          <div class="division-summary-card" id="percentSummaryCard" aria-live="polite">
+            <div class="division-summary-row">
+              <span id="percentAnswerLabel">Ответ</span>
+              <strong id="percentAnswerPreview">36</strong>
+            </div>
+          </div>
+
+          <div class="actions single-action">
+            <button class="primary-btn" type="submit">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span id="percentSolveLabel">Разобрать проценты</span>
+            </button>
+          </div>
+
+          <div class="side-step-panel">
+            <span id="percentStepMeterBottom" class="step-meter">Шаги появятся после решения</span>
+            <div class="step-buttons">
+              <button class="ghost-btn" id="percentPrevStepBottom" type="button" disabled>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Назад
+              </button>
+              <button class="ghost-btn" id="percentNextStepBottom" type="button" disabled>
+                Далее
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button class="ghost-btn" id="percentShowAllBottom" type="button" disabled>Все шаги</button>
+            </div>
+          </div>
+        </form>
+
+        <section class="panel result-area" aria-live="polite">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title" id="percentResultTitle">Пошаговый разбор процентов</h2>
+              <p class="panel-note" id="percentResultNote">Сначала определяем тип задачи, затем переводим проценты в долю от 100 и выполняем действие.</p>
+            </div>
+          </div>
+
+          <div class="equation-stage division-equation-stage">
+            <div id="percentEquation" class="equation division-equation"></div>
+
+            <div class="step-controls">
+              <span id="percentStepMeter" class="step-meter">Шаги появятся после решения</span>
+              <div class="step-buttons">
+                <button class="ghost-btn" id="percentPrevStep" type="button" disabled>
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  Назад
+                </button>
+                <button class="ghost-btn" id="percentNextStep" type="button" disabled>
+                  Далее
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <button class="ghost-btn" id="percentShowAll" type="button" disabled>Все шаги</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="percentSteps" class="steps-list">
+            <div class="empty-state">
+              <p>Выберите тип задачи с процентами, введите значения и нажмите «Разобрать проценты».</p>
+            </div>
+          </div>
+
+          <div class="teacher-notes">
+            <div class="note">
+              <strong id="percentNoteTitle1">Процент — это сотая доля</strong>
+              <span id="percentNoteText1">Любой процент сначала удобно перевести в дробь со знаменателем 100 или в десятичную дробь.</span>
+            </div>
+            <div class="note">
+              <strong id="percentNoteTitle2">Процент от числа</strong>
+              <span id="percentNoteText2">Чтобы найти процент от числа, нужно умножить число на долю, которую задает процент.</span>
+            </div>
+            <div class="note">
+              <strong id="percentNoteTitle3">Число по проценту</strong>
+              <span id="percentNoteText3">Чтобы восстановить целое по части, нужно разделить известную часть на долю, которую она составляет.</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="view-section" id="longDivisionView" data-view-section="longDivision" hidden>
+      <div class="workspace division-workspace" aria-label="Тренажер вычислений столбиком">
+        <form class="panel builder" id="longDivisionForm">
+          <div>
+            <h2 class="panel-title">Конструктор примера</h2>
+            <p class="panel-note" id="columnBuilderNote">Только целые неотрицательные числа. Для деления можно остановиться на остатке или продолжить после запятой.</p>
+          </div>
+
+          <div class="fraction-row">
+            <div class="row-label">
+              <span>Операция</span>
+              <span id="columnOperationReadable" class="muted">деление</span>
+            </div>
+            <div class="operation-strip" id="columnOperationStrip" role="group" aria-label="Выбор операции столбиком">
+              <button type="button" data-column-operation="add" title="Сложение" aria-label="Сложение">+</button>
+              <button type="button" data-column-operation="subtract" title="Вычитание" aria-label="Вычитание">-</button>
+              <button type="button" data-column-operation="multiply" title="Умножение" aria-label="Умножение">×</button>
+              <button class="active" type="button" data-column-operation="divide" title="Деление" aria-label="Деление">÷</button>
+            </div>
+          </div>
+
+          <div class="division-input-grid">
+            <label class="field-group compact-field">
+              <span id="columnLeftLabel">Делимое</span>
               <input id="divisionDividend" class="text-input" type="text" inputmode="numeric" value="1572" placeholder="Например, 1572" aria-label="Делимое">
             </label>
 
             <label class="field-group compact-field">
-              <span>Делитель</span>
+              <span id="columnRightLabel">Делитель</span>
               <input id="divisionDivisor" class="text-input" type="text" inputmode="numeric" value="12" placeholder="Например, 12" aria-label="Делитель">
             </label>
           </div>
 
-          <div class="options" aria-label="Настройки деления">
+          <div class="options" id="divisionOptions" aria-label="Настройки деления">
             <label class="toggle">
               <span>Если есть остаток, продолжать деление после запятой</span>
               <input id="divisionContinueDecimals" type="checkbox" checked>
@@ -216,13 +379,20 @@
             </label>
           </div>
 
-          <div class="division-summary-card" aria-live="polite">
+          <div class="options" aria-label="Показ решения столбиком">
+            <label class="toggle">
+              <span>Скрывать вычисления и ответы</span>
+              <input id="columnHideAnswers" type="checkbox">
+            </label>
+          </div>
+
+          <div class="division-summary-card" id="divisionSummaryCard" aria-live="polite">
             <div class="division-summary-row">
-              <span>Частное</span>
+              <span id="divisionPrimaryLabel">Частное</span>
               <strong id="divisionQuotientPreview">131</strong>
             </div>
-            <div class="division-summary-row">
-              <span>Остаток</span>
+            <div class="division-summary-row" id="divisionSecondaryRow">
+              <span id="divisionSecondaryLabel">Остаток</span>
               <strong id="divisionRemainderPreview">0</strong>
             </div>
           </div>
@@ -232,7 +402,7 @@
               <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
-              Разобрать деление
+              <span id="columnSolveLabel">Разобрать деление</span>
             </button>
           </div>
 
@@ -259,8 +429,8 @@
         <section class="panel result-area" aria-live="polite">
           <div class="panel-header">
             <div>
-              <h2 class="panel-title">Пошаговое деление</h2>
-              <p class="panel-note">Показывайте каждый этап: неполное делимое, цифру частного, вычитание и снос следующей цифры.</p>
+              <h2 class="panel-title" id="columnResultTitle">Пошаговое деление</h2>
+              <p class="panel-note" id="columnResultNote">Показывайте каждый этап: неполное делимое, цифру частного, вычитание и снос следующей цифры.</p>
             </div>
           </div>
 
@@ -300,16 +470,16 @@
 
           <div class="teacher-notes">
             <div class="note">
-              <strong>Неполное делимое</strong>
-              <span>Берите слева минимальное число, которое уже можно делить на делитель.</span>
+              <strong id="columnNoteTitle1">Неполное делимое</strong>
+              <span id="columnNoteText1">Берите слева минимальное число, которое уже можно делить на делитель.</span>
             </div>
             <div class="note">
-              <strong>Цифра частного</strong>
-              <span>На каждом шаге подбираем максимальную цифру, чтобы произведение не превысило текущий фрагмент.</span>
+              <strong id="columnNoteTitle2">Цифра частного</strong>
+              <span id="columnNoteText2">На каждом шаге подбираем максимальную цифру, чтобы произведение не превысило текущий фрагмент.</span>
             </div>
             <div class="note">
-              <strong>Остаток или десятичная дробь</strong>
-              <span>Если число не делится нацело, можно остановиться на остатке или дописать нули после запятой.</span>
+              <strong id="columnNoteTitle3">Остаток или десятичная дробь</strong>
+              <span id="columnNoteText3">Если число не делится нацело, можно остановиться на остатке или дописать нули после запятой.</span>
             </div>
           </div>
         </section>
