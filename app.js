@@ -14,7 +14,8 @@
       rightDen: document.getElementById("rightDen"),
       showReduction: document.getElementById("showReduction"),
       showMixed: document.getElementById("showMixed"),
-      hideAnswers: document.getElementById("fractionHideAnswers")
+      hideAnswers: document.getElementById("fractionHideAnswers"),
+      randomLevel: document.getElementById("fractionRandomLevel")
     };
 
     const elements = {
@@ -30,9 +31,12 @@
       showAllBottom: document.getElementById("showAllBottom"),
       leftReadable: document.getElementById("leftReadable"),
       rightReadable: document.getElementById("rightReadable"),
+      operationMenu: document.getElementById("fractionOperationMenu"),
+      operationTrigger: document.getElementById("fractionOperationTrigger"),
+      operationCurrentSymbol: document.getElementById("operationCurrentSymbol"),
       operationReadable: document.getElementById("operationReadable"),
-      leftPie: document.getElementById("leftPie"),
-      rightPie: document.getElementById("rightPie")
+      operationButtons: document.querySelectorAll("#fractionOperationMenu [data-operation]"),
+      randomize: document.getElementById("randomFractionBtn")
     };
 
     const operationMeta = {
@@ -527,26 +531,202 @@
 
     function setOperation(operation) {
       state.operation = operation;
-      document.querySelectorAll("[data-operation]").forEach((button) => {
+      elements.operationButtons.forEach((button) => {
         button.classList.toggle("active", button.dataset.operation === operation);
       });
+      elements.operationCurrentSymbol.textContent = operationMeta[operation].symbol;
       elements.operationReadable.textContent = operationMeta[operation].text;
+      elements.operationTrigger.setAttribute("aria-label", `Выбрано действие: ${operationMeta[operation].text}`);
+      elements.operationMenu.classList.remove("is-open");
+      elements.operationTrigger.setAttribute("aria-expanded", "false");
     }
 
     function updatePreview(prefix) {
       try {
         const frac = parseFraction(prefix);
         const readableTarget = prefix === "left" ? elements.leftReadable : elements.rightReadable;
-        const pieTarget = prefix === "left" ? elements.leftPie : elements.rightPie;
         const reduced = reduce(frac);
         readableTarget.textContent = plainFraction(reduced, true);
-        const ratio = Math.abs(reduced.num / reduced.den);
-        const fill = Math.min(100, Math.round((ratio % 1 || (ratio > 0 ? 1 : 0)) * 100));
-        pieTarget.style.setProperty("--fill", `${fill}%`);
       } catch (error) {
         const readableTarget = prefix === "left" ? elements.leftReadable : elements.rightReadable;
         readableTarget.textContent = "ошибка";
       }
+    }
+
+    function randomInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function pickRandom(items) {
+      return items[randomInt(0, items.length - 1)];
+    }
+
+    function getRandomFractionConfig(level) {
+      const numericLevel = asInteger(level, 1);
+      if (numericLevel === 2) {
+        return {
+          maxValue: 50,
+          mixed: false,
+          addBases: [12, 15, 18, 20, 24, 30, 36, 40, 45, 48],
+          reductionMax: 9,
+          wholeMax: 0
+        };
+      }
+      if (numericLevel === 3) {
+        return {
+          maxValue: 100,
+          mixed: true,
+          addBases: [18, 20, 24, 30, 36, 40, 48, 60, 72, 84, 90],
+          reductionMax: 12,
+          wholeMax: 7
+        };
+      }
+      return {
+        maxValue: 10,
+        mixed: false,
+        addBases: [2, 3, 4, 5, 6, 8, 10],
+        reductionMax: 5,
+        wholeMax: 0
+      };
+    }
+
+    function getDivisors(base, maxValue) {
+      const divisors = [];
+      for (let value = 2; value <= Math.min(base, maxValue); value += 1) {
+        if (base % value === 0) {
+          divisors.push(value);
+        }
+      }
+      return divisors.length > 0 ? divisors : [base];
+    }
+
+    function buildGeneratedFraction(config, numerator, denominator, whole = 0) {
+      return {
+        whole: config.mixed ? whole : 0,
+        num: numerator,
+        den: denominator
+      };
+    }
+
+    function compareGeneratedFractions(left, right) {
+      const leftImproper = left.whole * left.den + left.num;
+      const rightImproper = right.whole * right.den + right.num;
+      return leftImproper * right.den - rightImproper * left.den;
+    }
+
+    function withRandomWhole(config, fraction) {
+      if (!config.mixed) {
+        return buildGeneratedFraction(config, fraction.num, fraction.den, 0);
+      }
+      const wholeShift = Math.trunc(fraction.num / fraction.den);
+      const remainder = fraction.num % fraction.den;
+      return buildGeneratedFraction(
+        config,
+        remainder,
+        fraction.den,
+        randomInt(1, config.wholeMax) + wholeShift
+      );
+    }
+
+    function generateAddSubtractPair(level, operation) {
+      const config = getRandomFractionConfig(level);
+      const commonBase = pickRandom(config.addBases);
+      const divisors = getDivisors(commonBase, config.maxValue);
+      let left = null;
+      let right = null;
+
+      for (let attempt = 0; attempt < 80; attempt += 1) {
+        const leftDen = pickRandom(divisors);
+        const rightDen = Math.random() < 0.45 ? leftDen : pickRandom(divisors);
+        const leftNum = randomInt(1, Math.max(1, leftDen - 1));
+        const rightNum = randomInt(1, Math.max(1, rightDen - 1));
+        left = withRandomWhole(config, { num: leftNum, den: leftDen });
+        right = withRandomWhole(config, { num: rightNum, den: rightDen });
+        if (operation === "subtract") {
+          if (compareGeneratedFractions(left, right) === 0) {
+            continue;
+          }
+          if (compareGeneratedFractions(left, right) < 0) {
+            [left, right] = [right, left];
+          }
+        }
+        break;
+      }
+
+      return { left, right };
+    }
+
+    function generateCrossFriendlyPair(level, operation) {
+      const config = getRandomFractionConfig(level);
+      const factorLimit = config.reductionMax;
+
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        const factorA = randomInt(2, factorLimit);
+        const factorB = randomInt(2, factorLimit);
+        const leftBaseNum = randomInt(1, Math.max(1, Math.floor(config.maxValue / factorA)));
+        const rightBaseDen = randomInt(2, Math.max(2, Math.floor(config.maxValue / factorA)));
+        const leftBaseDen = randomInt(2, Math.max(2, Math.floor(config.maxValue / factorB)));
+        const rightBaseNum = randomInt(1, Math.max(1, Math.floor(config.maxValue / factorB)));
+
+        const leftFraction = {
+          num: leftBaseNum * factorA,
+          den: leftBaseDen * factorB
+        };
+        const rightFraction = operation === "divide"
+          ? {
+              num: rightBaseNum * factorA,
+              den: rightBaseDen * factorB
+            }
+          : {
+              num: rightBaseNum * factorB,
+              den: rightBaseDen * factorA
+            };
+
+        if (
+          leftFraction.num > config.maxValue ||
+          leftFraction.den > config.maxValue ||
+          rightFraction.num > config.maxValue ||
+          rightFraction.den > config.maxValue
+        ) {
+          continue;
+        }
+
+        if (
+          !config.mixed &&
+          (leftFraction.num >= leftFraction.den || rightFraction.num >= rightFraction.den)
+        ) {
+          continue;
+        }
+
+        if (rightFraction.num === 0 || rightFraction.den === 0) {
+          continue;
+        }
+
+        return {
+          left: withRandomWhole(config, leftFraction),
+          right: withRandomWhole(config, rightFraction)
+        };
+      }
+
+      return generateAddSubtractPair(level, "add");
+    }
+
+    function applyGeneratedFraction(prefix, fraction) {
+      fields[`${prefix}Whole`].value = String(fraction.whole);
+      fields[`${prefix}Num`].value = String(fraction.num);
+      fields[`${prefix}Den`].value = String(fraction.den);
+    }
+
+    function generateRandomFractions() {
+      const level = fields.randomLevel.value;
+      const pair = state.operation === "add" || state.operation === "subtract"
+        ? generateAddSubtractPair(level, state.operation)
+        : generateCrossFriendlyPair(level, state.operation);
+
+      applyGeneratedFraction("left", pair.left);
+      applyGeneratedFraction("right", pair.right);
+      updateAllPreviews();
+      handleSolve(new Event("submit"));
     }
 
     function swapFractions() {
@@ -567,9 +747,39 @@
 
     document.getElementById("fractionForm").addEventListener("submit", handleSolve);
     document.getElementById("swapBtn").addEventListener("click", swapFractions);
+    elements.randomize.addEventListener("click", generateRandomFractions);
 
-    document.querySelectorAll("[data-operation]").forEach((button) => {
+    elements.operationButtons.forEach((button) => {
       button.addEventListener("click", () => setOperation(button.dataset.operation));
+    });
+
+    elements.operationTrigger.addEventListener("click", () => {
+      const isOpen = elements.operationMenu.classList.toggle("is-open");
+      elements.operationTrigger.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    });
+
+    elements.operationMenu.addEventListener("mouseenter", () => {
+      elements.operationTrigger.setAttribute("aria-expanded", "true");
+    });
+
+    elements.operationMenu.addEventListener("mouseleave", () => {
+      elements.operationMenu.classList.remove("is-open");
+      elements.operationTrigger.setAttribute("aria-expanded", "false");
+    });
+
+    elements.operationMenu.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        elements.operationMenu.classList.remove("is-open");
+        elements.operationTrigger.setAttribute("aria-expanded", "false");
+        elements.operationTrigger.focus();
+      }
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!elements.operationMenu.contains(event.target)) {
+        elements.operationMenu.classList.remove("is-open");
+        elements.operationTrigger.setAttribute("aria-expanded", "false");
+      }
     });
 
     Object.values(fields).forEach((field) => {
@@ -620,6 +830,7 @@
       renderSteps();
     });
 
+    setOperation(state.operation);
     updateAllPreviews();
     handleSolve(new Event("submit"));
 

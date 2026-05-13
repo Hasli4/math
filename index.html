@@ -32,57 +32,72 @@
         </div>
 
         <div class="fraction-row">
-          <div class="row-label">
-            <span>Первая дробь</span>
-            <span id="leftReadable" class="muted"></span>
-          </div>
-          <div class="fraction-editor">
-            <div class="number-box">
-              <label for="leftWhole">Целая</label>
-              <input id="leftWhole" name="leftWhole" type="number" step="1" value="0" inputmode="numeric">
-            </div>
-            <div class="stacked-fraction-input" aria-label="Дробная часть первой дроби">
-              <input id="leftNum" name="leftNum" type="number" step="1" min="0" value="1" aria-label="Числитель первой дроби" inputmode="numeric">
-              <span class="fraction-line" aria-hidden="true"></span>
-              <input id="leftDen" name="leftDen" type="number" step="1" value="2" aria-label="Знаменатель первой дроби" inputmode="numeric">
-            </div>
-            <div class="fraction-preview" aria-hidden="true">
-              <div id="leftPie" class="pie"></div>
-            </div>
-          </div>
-        </div>
+          <div class="fraction-composer">
+            <section class="fraction-side" aria-label="Первая дробь">
+              <div class="fraction-side-header">
+                <span>1-я дробь</span>
+                <span id="leftReadable" class="muted"></span>
+              </div>
+              <div class="fraction-editor">
+                <div class="number-box number-box--compact">
+                  <label for="leftWhole">Целая</label>
+                  <input id="leftWhole" name="leftWhole" type="number" step="1" value="0" inputmode="numeric">
+                </div>
+                <div class="stacked-fraction-input stacked-fraction-input--compact" aria-label="Дробная часть первой дроби">
+                  <input id="leftNum" name="leftNum" type="number" step="1" min="0" value="1" aria-label="Числитель первой дроби" inputmode="numeric">
+                  <span class="fraction-line" aria-hidden="true"></span>
+                  <input id="leftDen" name="leftDen" type="number" step="1" value="2" aria-label="Знаменатель первой дроби" inputmode="numeric">
+                </div>
+              </div>
+            </section>
 
-        <div class="fraction-row">
-          <div class="row-label">
-            <span>Действие</span>
-            <span id="operationReadable" class="muted">сложение</span>
-          </div>
-          <div class="operation-strip" role="group" aria-label="Выбор операции">
-            <button class="active" type="button" data-operation="add" title="Сложить">+</button>
-            <button type="button" data-operation="subtract" title="Вычесть">-</button>
-            <button type="button" data-operation="multiply" title="Умножить">×</button>
-            <button type="button" data-operation="divide" title="Разделить">÷</button>
-          </div>
-        </div>
+            <section class="fraction-operator-panel" aria-label="Действие над дробями">
+              <div class="fraction-operation-menu" id="fractionOperationMenu">
+                <button class="fraction-operation-trigger" id="fractionOperationTrigger" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Выбрать действие над дробями">
+                  <span id="operationCurrentSymbol" class="fraction-operation-symbol">+</span>
+                  <span id="operationReadable" class="fraction-operator-readout" aria-live="polite">сложение</span>
+                  <svg class="icon fraction-operation-caret" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <div class="fraction-operation-list" role="menu" aria-label="Выбор операции">
+                  <button class="active" type="button" data-operation="add" title="Сложить" role="menuitem">
+                    <span class="fraction-operation-item-symbol">+</span>
+                    <span>Сложение</span>
+                  </button>
+                  <button type="button" data-operation="subtract" title="Вычесть" role="menuitem">
+                    <span class="fraction-operation-item-symbol">-</span>
+                    <span>Вычитание</span>
+                  </button>
+                  <button type="button" data-operation="multiply" title="Умножить" role="menuitem">
+                    <span class="fraction-operation-item-symbol">×</span>
+                    <span>Умножение</span>
+                  </button>
+                  <button type="button" data-operation="divide" title="Разделить" role="menuitem">
+                    <span class="fraction-operation-item-symbol">÷</span>
+                    <span>Деление</span>
+                  </button>
+                </div>
+              </div>
+            </section>
 
-        <div class="fraction-row">
-          <div class="row-label">
-            <span>Вторая дробь</span>
-            <span id="rightReadable" class="muted"></span>
-          </div>
-          <div class="fraction-editor">
-            <div class="number-box">
-              <label for="rightWhole">Целая</label>
-              <input id="rightWhole" name="rightWhole" type="number" step="1" value="0" inputmode="numeric">
-            </div>
-            <div class="stacked-fraction-input" aria-label="Дробная часть второй дроби">
-              <input id="rightNum" name="rightNum" type="number" step="1" min="0" value="1" aria-label="Числитель второй дроби" inputmode="numeric">
-              <span class="fraction-line" aria-hidden="true"></span>
-              <input id="rightDen" name="rightDen" type="number" step="1" value="3" aria-label="Знаменатель второй дроби" inputmode="numeric">
-            </div>
-            <div class="fraction-preview" aria-hidden="true">
-              <div id="rightPie" class="pie"></div>
-            </div>
+            <section class="fraction-side" aria-label="Вторая дробь">
+              <div class="fraction-side-header">
+                <span>2-я дробь</span>
+                <span id="rightReadable" class="muted"></span>
+              </div>
+              <div class="fraction-editor">
+                <div class="number-box number-box--compact">
+                  <label for="rightWhole">Целая</label>
+                  <input id="rightWhole" name="rightWhole" type="number" step="1" value="0" inputmode="numeric">
+                </div>
+                <div class="stacked-fraction-input stacked-fraction-input--compact" aria-label="Дробная часть второй дроби">
+                  <input id="rightNum" name="rightNum" type="number" step="1" min="0" value="1" aria-label="Числитель второй дроби" inputmode="numeric">
+                  <span class="fraction-line" aria-hidden="true"></span>
+                  <input id="rightDen" name="rightDen" type="number" step="1" value="3" aria-label="Знаменатель второй дроби" inputmode="numeric">
+                </div>
+              </div>
+            </section>
           </div>
         </div>
 
@@ -99,6 +114,25 @@
             <span>Скрывать вычисления и ответы</span>
             <input id="fractionHideAnswers" type="checkbox">
           </label>
+        </div>
+
+        <div class="guide-card guide-card--accent fraction-random-guide">
+          <strong>Как пользоваться генератором</strong>
+          <span>Уровень 1: простые обыкновенные дроби с маленькими числами.</span>
+          <span>Уровень 2: числа больше, но всё ещё удобные для сокращения и разбора.</span>
+          <span>Уровень 3: смешанные дроби и более богатые примеры.</span>
+        </div>
+
+        <div class="fraction-random-builder">
+          <label class="field-group compact-field">
+            <span>Случайный пример</span>
+            <select id="fractionRandomLevel" class="text-input" aria-label="Уровень сложности генерации дробей">
+              <option value="1">Уровень 1</option>
+              <option value="2">Уровень 2</option>
+              <option value="3">Уровень 3</option>
+            </select>
+          </label>
+          <button class="ghost-btn" id="randomFractionBtn" type="button">Случайные дроби</button>
         </div>
 
         <div class="actions">
