@@ -28,12 +28,7 @@ This is especially useful in lessons where the explanation matters as much as th
 
 ## How to run it
 
-This is a static project. The simplest way is:
-
-1. download or clone the repository;
-2. open `index.html` in a browser.
-
-To publish it on GitHub Pages, you only need to upload the main project files to the repository.
+This is a static project, published on GitHub Pages, can be opened by the link - [https://hasli4.github.io/math/](https://hasli4.github.io/math/)
 
 ## Main files
 
