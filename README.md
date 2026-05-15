@@ -28,7 +28,7 @@
 
 ## Как запустить
 
-Это статический проеект, опуликован на GitHub Pages, можно открыть по ссылке - [https://hasli4.github.io/math/](https://hasli4.github.io/math/)
+Это статический проеект, опубликован на GitHub Pages, можно открыть по ссылке - [https://hasli4.github.io/math/](https://hasli4.github.io/math/)
 
 Для публикации на GitHub Pages достаточно загрузить основные файлы проекта в репозиторий.
 
