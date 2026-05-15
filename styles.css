@@ -108,6 +108,11 @@
       display: none;
     }
 
+    #fractionsView {
+      --fraction-sticky-equation-height: 82px;
+      --fraction-sticky-equation-top: 10px;
+    }
+
     .workspace {
       display: grid;
       grid-template-columns: minmax(360px, 440px) minmax(0, 1fr);
@@ -691,6 +696,28 @@
       background: #f8fbfc;
       border: 1px solid var(--line);
       overflow-x: auto;
+    }
+
+    .fraction-equation-stage {
+      position: sticky;
+      top: var(--fraction-sticky-equation-top);
+      z-index: 4;
+      gap: 12px;
+      padding-bottom: 14px;
+      align-self: start;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 10px 24px rgba(23, 33, 43, 0.08);
+    }
+
+    .fraction-equation-stage .equation {
+      min-height: var(--fraction-sticky-equation-height);
+      padding: 10px 14px;
+      background: #f8fbfc;
+    }
+
+    .fraction-steps-list {
+      margin-top: 0;
+      padding-top: 18px;
     }
 
     .division-equation {
@@ -1650,6 +1677,11 @@
 
       .fraction-composer {
         gap: 8px;
+      }
+
+      #fractionsView {
+        --fraction-sticky-equation-height: 74px;
+        --fraction-sticky-equation-top: 8px;
       }
 
       .fraction-editor {
