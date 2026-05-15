@@ -109,7 +109,7 @@
     }
 
     #fractionsView {
-      --fraction-sticky-equation-height: 82px;
+      --fraction-sticky-equation-height: 196px;
       --fraction-sticky-equation-top: 10px;
     }
 
@@ -914,6 +914,196 @@
       white-space: nowrap;
     }
 
+    .equation .compact-expression {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-width: max-content;
+      font-size: 1.22rem;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+
+    .equation-showcase {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+
+    .equation .spoiler--equation,
+    .equation .spoiler--equation .spoiler-body {
+      width: 100%;
+    }
+
+    .equation-dashboard {
+      width: 100%;
+      display: grid;
+      gap: 12px;
+    }
+
+    .equation-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      width: 100%;
+    }
+
+    .equation-summary-card {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid rgba(207, 219, 226, 0.92);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.92);
+      min-width: 0;
+    }
+
+    .equation-summary-card--current {
+      border-color: rgba(46, 118, 190, 0.26);
+      background: rgba(248, 251, 252, 0.96);
+    }
+
+    .equation-summary-label {
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .equation-summary-value {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+    }
+
+    .equation-summary-value .equation-showcase {
+      justify-content: flex-start;
+    }
+
+    .equation-step-preview {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .equation-flow {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      min-width: max-content;
+      padding: 4px 2px;
+      white-space: nowrap;
+    }
+
+    .equation-symbol {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+      font-weight: 900;
+    }
+
+    .equation-symbol--main {
+      font-size: 1.35rem;
+    }
+
+    .equation-symbol--minor {
+      font-size: 1rem;
+      color: var(--muted);
+    }
+
+    .equation-value {
+      display: inline-flex;
+      align-items: center;
+      font-weight: 900;
+      color: var(--ink);
+    }
+
+    .equation-value--ink {
+      color: var(--ink);
+    }
+
+    .equation-value--accent {
+      color: #2f7fca;
+    }
+
+    .equation-value--danger {
+      color: #d94d58;
+    }
+
+    .equation-value--success {
+      color: #249664;
+    }
+
+    .equation-sign {
+      display: inline-flex;
+      align-items: center;
+      color: var(--ink);
+      font-size: 1.1rem;
+      font-weight: 900;
+    }
+
+    .equation-mixed-number,
+    .equation-fraction-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .equation-fraction {
+      display: inline-grid;
+      grid-template-rows: auto 2px auto;
+      gap: 5px;
+      min-width: 52px;
+      align-items: center;
+      justify-items: center;
+      line-height: 1;
+    }
+
+    .equation-frac-top,
+    .equation-frac-bottom {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 1em;
+      white-space: nowrap;
+    }
+
+    .equation-frac-line {
+      width: 100%;
+      min-width: 48px;
+      height: 2px;
+      border-radius: 999px;
+      background: var(--ink);
+    }
+
+    .equation-frac-note {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 26px;
+      min-height: 20px;
+      padding: 0 6px;
+      border: 1px solid rgba(23, 33, 43, 0.22);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.96);
+      color: var(--primary-dark);
+      font-size: 0.74rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .equation-frac-note--top {
+      transform: translateY(-4px);
+    }
+
+    .equation-frac-note--bottom {
+      transform: translateY(4px);
+    }
+
     .step-controls {
       display: flex;
       align-items: center;
@@ -989,6 +1179,45 @@
       background: #f8fbfc;
       border: 1px solid rgba(207, 219, 226, 0.86);
       overflow-x: auto;
+    }
+
+    .denominator-analysis {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .denominator-analysis-row {
+      display: grid;
+      grid-template-columns: max-content max-content minmax(0, 1fr);
+      gap: 8px;
+      align-items: baseline;
+      font-weight: 800;
+      line-height: 1.4;
+    }
+
+    .denominator-analysis-row--result {
+      color: var(--primary-dark);
+    }
+
+    .denominator-analysis-label {
+      color: var(--ink);
+    }
+
+    .denominator-analysis-equals {
+      color: var(--muted);
+    }
+
+    .denominator-analysis-value {
+      color: var(--primary-dark);
+      word-break: break-word;
+    }
+
+    .denominator-analysis-note {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.46;
     }
 
     .spoiler {
@@ -1095,6 +1324,11 @@
       padding: 28px;
       color: var(--muted);
       text-align: center;
+    }
+
+    .compact-empty-state {
+      min-height: 0;
+      padding: 8px;
     }
 
     .error {
@@ -1680,7 +1914,7 @@
       }
 
       #fractionsView {
-        --fraction-sticky-equation-height: 74px;
+        --fraction-sticky-equation-height: 214px;
         --fraction-sticky-equation-top: 8px;
       }
 
@@ -1706,6 +1940,14 @@
 
       .equation {
         justify-content: flex-start;
+      }
+
+      .equation-summary-grid {
+        gap: 8px;
+      }
+
+      .equation-summary-card {
+        padding: 10px;
       }
 
       .step-card {

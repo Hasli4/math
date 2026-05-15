@@ -2,7 +2,8 @@
       operation: "add",
       steps: [],
       visibleSteps: 0,
-      revealed: {}
+      revealed: {},
+      sourceView: ""
     };
 
     const fields = {
@@ -157,6 +158,255 @@
       return `<div class="compact-expression">${parts.join(" ")}</div>`;
     }
 
+    function equationValue(content, tone = "ink") {
+      return `<span class="equation-value equation-value--${tone}">${escapeTextMarkup(content)}</span>`;
+    }
+
+    function equationSymbol(symbol, variant = "main") {
+      return `<span class="equation-symbol equation-symbol--${variant}">${escapeTextMarkup(symbol)}</span>`;
+    }
+
+    function equationBadge(text, position = "top") {
+      return `<span class="equation-frac-note equation-frac-note--${position}">${escapeTextMarkup(text)}</span>`;
+    }
+
+    function equationFraction(numeratorHtml, denominatorHtml, options = {}) {
+      const sign = options.sign ? `<span class="equation-sign">${escapeTextMarkup(options.sign)}</span>` : "";
+      const numNote = options.numNote ? equationBadge(options.numNote, "top") : "";
+      const denNote = options.denNote ? equationBadge(options.denNote, "bottom") : "";
+      return `
+        <span class="equation-fraction-wrap">
+          ${sign}
+          <span class="equation-fraction">
+            <span class="equation-frac-top">${numeratorHtml}${numNote}</span>
+            <span class="equation-frac-line"></span>
+            <span class="equation-frac-bottom">${denominatorHtml}${denNote}</span>
+          </span>
+        </span>
+      `;
+    }
+
+    function equationImproperFraction(frac, options = {}) {
+      const normalized = normalize(frac);
+      return equationFraction(
+        equationValue(Math.abs(normalized.num), options.numTone || "ink"),
+        equationValue(normalized.den, options.denTone || "ink"),
+        {
+          sign: normalized.num < 0 ? "-" : "",
+          numNote: options.numNote,
+          denNote: options.denNote
+        }
+      );
+    }
+
+    function equationInputFraction(input, options = {}) {
+      const sign = input.num < 0 ? "-" : "";
+      const whole = Math.abs(input.whole);
+      const numerator = Math.abs(input.inputNumerator);
+      const denominator = Math.abs(input.inputDenominator);
+      const wholeTone = options.wholeTone || "accent";
+      const numTone = options.numTone || "ink";
+      const denTone = options.denTone || "ink";
+
+      if (whole !== 0 && numerator !== 0) {
+        return `
+          <span class="equation-mixed-number">
+            ${sign ? `<span class="equation-sign">${escapeTextMarkup(sign)}</span>` : ""}
+            ${equationValue(whole, wholeTone)}
+            ${equationFraction(
+              equationValue(numerator, numTone),
+              equationValue(denominator, denTone)
+            )}
+          </span>
+        `;
+      }
+
+      if (whole !== 0) {
+        return `
+          <span class="equation-mixed-number">
+            ${sign ? `<span class="equation-sign">${escapeTextMarkup(sign)}</span>` : ""}
+            ${equationValue(whole, wholeTone)}
+          </span>
+        `;
+      }
+
+      return equationFraction(
+        equationValue(numerator, numTone),
+        equationValue(denominator, denTone),
+        { sign }
+      );
+    }
+
+    function equationMixedResult(frac, options = {}) {
+      const reduced = reduce(frac);
+      const sign = reduced.num < 0 ? "-" : "";
+      const absNum = Math.abs(reduced.num);
+      const wholeTone = options.wholeTone || "accent";
+      const numTone = options.numTone || "success";
+      const denTone = options.denTone || "danger";
+
+      if (reduced.den === 1) {
+        return `
+          <span class="equation-mixed-number">
+            ${sign ? `<span class="equation-sign">${escapeTextMarkup(sign)}</span>` : ""}
+            ${equationValue(absNum, wholeTone)}
+          </span>
+        `;
+      }
+
+      if (absNum < reduced.den) {
+        return equationImproperFraction(reduced, { numTone, denTone });
+      }
+
+      const whole = Math.trunc(absNum / reduced.den);
+      const remainder = absNum % reduced.den;
+      if (remainder === 0) {
+        return `
+          <span class="equation-mixed-number">
+            ${sign ? `<span class="equation-sign">${escapeTextMarkup(sign)}</span>` : ""}
+            ${equationValue(whole, wholeTone)}
+          </span>
+        `;
+      }
+
+      return `
+        <span class="equation-mixed-number">
+          ${sign ? `<span class="equation-sign">${escapeTextMarkup(sign)}</span>` : ""}
+          ${equationValue(whole, wholeTone)}
+          ${equationFraction(
+            equationValue(remainder, numTone),
+            equationValue(reduced.den, denTone)
+          )}
+        </span>
+      `;
+    }
+
+    function equationFormulaFromMixed(input) {
+      return equationFraction(
+        [
+          equationValue(Math.abs(input.whole), "accent"),
+          equationSymbol("×", "minor"),
+          equationValue(Math.abs(input.inputDenominator), "danger"),
+          equationSymbol("+", "minor"),
+          equationValue(Math.abs(input.inputNumerator), "ink")
+        ].join(""),
+        equationValue(Math.abs(input.inputDenominator), "danger"),
+        { sign: input.num < 0 ? "-" : "" }
+      );
+    }
+
+    function equationScaledFraction(frac, factor, options = {}) {
+      return equationFraction(
+        [
+          equationValue(Math.abs(frac.num), options.baseNumTone || "ink"),
+          equationSymbol("×", "minor"),
+          equationValue(factor, "accent")
+        ].join(""),
+        [
+          equationValue(frac.den, options.baseDenTone || "danger"),
+          equationSymbol("×", "minor"),
+          equationValue(factor, "accent")
+        ].join(""),
+        {
+          sign: frac.num < 0 ? "-" : "",
+          numNote: options.numNote,
+          denNote: options.denNote
+        }
+      );
+    }
+
+    function equationCombinedNumerators(leftNum, rightNum, den, symbol) {
+      return equationFraction(
+        [
+          equationValue(leftNum, "success"),
+          equationSymbol(symbol, "minor"),
+          equationValue(rightNum, "success")
+        ].join(""),
+        equationValue(den, "danger")
+      );
+    }
+
+    function equationProductFraction(left, right) {
+      const sign = left.num * right.num < 0 ? "-" : "";
+      return equationFraction(
+        [
+          equationValue(Math.abs(left.num), "success"),
+          equationSymbol("×", "minor"),
+          equationValue(Math.abs(right.num), "success")
+        ].join(""),
+        [
+          equationValue(left.den, "danger"),
+          equationSymbol("×", "minor"),
+          equationValue(right.den, "danger")
+        ].join(""),
+        { sign }
+      );
+    }
+
+    function equationShowcase(parts) {
+      return `<div class="equation-showcase"><div class="equation-flow">${parts.join("")}</div></div>`;
+    }
+
+    function equationOperationView(leftMarkup, symbol, rightMarkup, resultMarkup = "") {
+      const parts = [leftMarkup, equationSymbol(symbol, "main"), rightMarkup];
+      if (resultMarkup) {
+        parts.push(equationSymbol("=", "main"), resultMarkup);
+      }
+      return equationShowcase(parts);
+    }
+
+    function primeFactors(value) {
+      let rest = Math.abs(value);
+      if (rest < 2) {
+        return [rest];
+      }
+
+      const factors = [];
+      let divisor = 2;
+      while (divisor * divisor <= rest) {
+        while (rest % divisor === 0) {
+          factors.push(divisor);
+          rest /= divisor;
+        }
+        divisor = divisor === 2 ? 3 : divisor + 2;
+      }
+
+      if (rest > 1) {
+        factors.push(rest);
+      }
+      return factors;
+    }
+
+    function factorText(value) {
+      const factors = primeFactors(value);
+      return factors.join(" × ");
+    }
+
+    function buildCommonDenominatorMath(leftDen, rightDen, commonDen) {
+      return `
+        <div class="denominator-analysis">
+          <div class="denominator-analysis-row">
+            <span class="denominator-analysis-label">${leftDen}</span>
+            <span class="denominator-analysis-equals">=</span>
+            <span class="denominator-analysis-value">${escapeTextMarkup(factorText(leftDen))}</span>
+          </div>
+          <div class="denominator-analysis-row">
+            <span class="denominator-analysis-label">${rightDen}</span>
+            <span class="denominator-analysis-equals">=</span>
+            <span class="denominator-analysis-value">${escapeTextMarkup(factorText(rightDen))}</span>
+          </div>
+          <div class="denominator-analysis-row denominator-analysis-row--result">
+            <span class="denominator-analysis-label">НОК(${leftDen}, ${rightDen})</span>
+            <span class="denominator-analysis-equals">=</span>
+            <span class="denominator-analysis-value">${commonDen}</span>
+          </div>
+          <p class="denominator-analysis-note">
+            Берем все множители из обоих разложений так, чтобы число делилось и на ${leftDen}, и на ${rightDen}. Поэтому общий знаменатель здесь равен ${commonDen}.
+          </p>
+        </div>
+      `;
+    }
+
     function escapeAttribute(value) {
       return String(value)
         .replaceAll("&", "&amp;")
@@ -184,11 +434,11 @@
       `;
     }
 
-    function makeStep(title, explain, math) {
-      return { title, explain, math };
+    function makeStep(title, explain, math, headline = math, currentView = headline) {
+      return { title, explain, math, headline, currentView };
     }
 
-    function getConversionStep(label, input) {
+    function getConversionStep(label, input, currentView) {
       const absWhole = Math.abs(input.whole);
       const absNum = Math.abs(input.inputNumerator);
       const absDen = Math.abs(input.inputDenominator);
@@ -196,7 +446,11 @@
         return makeStep(
           `${label}: дробь уже обыкновенная`,
           "Целой части нет, поэтому можно сразу работать с числителем и знаменателем.",
-          expression([htmlFraction(input.num, input.den)])
+          expression([htmlFraction(input.num, input.den)]),
+          equationShowcase([
+            equationInputFraction(input, { numTone: "success", denTone: "danger" })
+          ]),
+          currentView
         );
       }
       const signText = input.num < 0 ? "С учетом минуса: " : "";
@@ -207,12 +461,21 @@
           `${signText}(${absWhole} × ${absDen} + ${absNum}) / ${absDen}`,
           "=",
           htmlFraction(input.num, input.den)
-        ])
+        ]),
+        equationShowcase([
+          equationInputFraction(input, { wholeTone: "accent", numTone: "ink", denTone: "danger" }),
+          equationSymbol("=", "main"),
+          equationFormulaFromMixed(input),
+          equationSymbol("=", "main"),
+          equationImproperFraction(input, { numTone: "success", denTone: "danger" })
+        ]),
+        currentView
       );
     }
 
-    function buildCommonDenominatorStep(label, frac, factor, commonDen) {
+    function buildCommonDenominatorStep(label, frac, factor, commonDen, currentView) {
       const adjustedNum = frac.num * factor;
+      const adjustedFraction = normalize({ num: adjustedNum, den: commonDen });
       const stepTitle = factor === 1
         ? `${label}: знаменатель уже ${commonDen}`
         : `${label}: приводим к знаменателю ${commonDen}`;
@@ -229,31 +492,91 @@
           `(${frac.num} × ${factor}) / (${frac.den} × ${factor})`,
           "=",
           htmlFraction(adjustedNum, commonDen)
-        ])
+        ]),
+        equationShowcase([
+          equationImproperFraction(frac, { numTone: "ink", denTone: "danger" }),
+          equationSymbol("=", "main"),
+          equationScaledFraction(frac, factor, { baseNumTone: "ink", baseDenTone: "danger" }),
+          equationSymbol("=", "main"),
+          equationImproperFraction(adjustedFraction, { numTone: "success", denTone: "danger" })
+        ]),
+        currentView
       );
     }
 
     function buildAddSubtractSteps(left, right, operation) {
+      const symbol = operationMeta[operation].symbol;
+      const leftInputView = equationInputFraction(left, { wholeTone: "accent", numTone: "ink", denTone: "danger" });
+      const rightInputView = equationInputFraction(right, { wholeTone: "accent", numTone: "ink", denTone: "danger" });
+      const leftImproperView = equationImproperFraction(left, { numTone: "success", denTone: "danger" });
+      const rightImproperView = equationImproperFraction(right, { numTone: "success", denTone: "danger" });
       const steps = [
-        getConversionStep("Первая дробь", left),
-        getConversionStep("Вторая дробь", right)
+        getConversionStep(
+          "Первая дробь",
+          left,
+          equationOperationView(leftImproperView, symbol, rightInputView)
+        ),
+        getConversionStep(
+          "Вторая дробь",
+          right,
+          equationOperationView(leftImproperView, symbol, rightImproperView)
+        )
       ];
       const commonDen = lcm(left.den, right.den);
       const leftFactor = commonDen / left.den;
       const rightFactor = commonDen / right.den;
       const leftNum = left.num * leftFactor;
       const rightNum = right.num * rightFactor;
+      const leftAdjusted = normalize({ num: leftNum, den: commonDen });
+      const rightAdjusted = normalize({ num: rightNum, den: commonDen });
       const isSameDen = left.den === right.den;
 
       if (isSameDen) {
         steps.push(makeStep(
           "Знаменатели уже одинаковые",
           `У первой дроби знаменатель ${left.den}, у второй дроби тоже ${right.den}. Приводить ничего не нужно.`,
-          expression([htmlFraction(left.num, left.den), operationMeta[operation].symbol, htmlFraction(right.num, right.den)])
+          expression([htmlFraction(left.num, left.den), operationMeta[operation].symbol, htmlFraction(right.num, right.den)]),
+          equationShowcase([
+            equationImproperFraction(left, { numTone: "success", denTone: "danger" }),
+            equationSymbol(operationMeta[operation].symbol, "main"),
+            equationImproperFraction(right, { numTone: "success", denTone: "danger" })
+          ]),
+          equationOperationView(leftImproperView, symbol, rightImproperView)
         ));
       } else {
-        steps.push(buildCommonDenominatorStep("Первая дробь", left, leftFactor, commonDen));
-        steps.push(buildCommonDenominatorStep("Вторая дробь", right, rightFactor, commonDen));
+        steps.push(makeStep(
+          "Ищем общий знаменатель",
+          `Для сложения и вычитания нужен общий знаменатель. Берем НОК знаменателей ${left.den} и ${right.den}. Это наименьшее число, которое делится на оба знаменателя, значит обе дроби можно привести именно к нему.`,
+          buildCommonDenominatorMath(left.den, right.den, commonDen),
+          equationShowcase([
+            equationValue(`НОК(${left.den}, ${right.den})`, "ink"),
+            equationSymbol("=", "main"),
+            equationValue(commonDen, "accent")
+          ]),
+          equationOperationView(leftImproperView, symbol, rightImproperView)
+        ));
+        steps.push(buildCommonDenominatorStep(
+          "Первая дробь",
+          left,
+          leftFactor,
+          commonDen,
+          equationOperationView(
+            equationImproperFraction(leftAdjusted, { numTone: "success", denTone: "danger" }),
+            symbol,
+            rightImproperView
+          )
+        ));
+        steps.push(buildCommonDenominatorStep(
+          "Вторая дробь",
+          right,
+          rightFactor,
+          commonDen,
+          equationOperationView(
+            equationImproperFraction(leftAdjusted, { numTone: "success", denTone: "danger" }),
+            symbol,
+            equationImproperFraction(rightAdjusted, { numTone: "success", denTone: "danger" })
+          )
+        ));
       }
 
       const resultNum = operation === "add" ? leftNum + rightNum : leftNum - rightNum;
@@ -269,7 +592,22 @@
           htmlFraction(rightNum, commonDen),
           "=",
           htmlFraction(rawResult.num, rawResult.den)
-        ])
+        ]),
+        equationShowcase([
+          equationImproperFraction({ num: leftNum, den: commonDen }, { numTone: "success", denTone: "danger" }),
+          equationSymbol(operationMeta[operation].symbol, "main"),
+          equationImproperFraction({ num: rightNum, den: commonDen }, { numTone: "success", denTone: "danger" }),
+          equationSymbol("=", "main"),
+          equationCombinedNumerators(leftNum, rightNum, commonDen, operationMeta[operation].symbol),
+          equationSymbol("=", "main"),
+          equationImproperFraction(rawResult, { numTone: "success", denTone: "danger" })
+        ]),
+        equationOperationView(
+          equationImproperFraction(leftAdjusted, { numTone: "success", denTone: "danger" }),
+          symbol,
+          equationImproperFraction(rightAdjusted, { numTone: "success", denTone: "danger" }),
+          equationImproperFraction(rawResult, { numTone: "success", denTone: "danger" })
+        )
       ));
 
       appendFinishSteps(steps, rawResult);
@@ -298,20 +636,36 @@
       return {
         left: { num: sign < 0 ? -a : a, den: b },
         right: { num: c, den: d },
+        first,
+        second,
         factors: [first, second].filter((item) => item > 1)
       };
     }
 
     function buildMultiplySteps(left, right, options = {}) {
+      const leftInputView = equationInputFraction(left, { wholeTone: "accent", numTone: "ink", denTone: "danger" });
+      const rightInputView = equationInputFraction(right, { wholeTone: "accent", numTone: "ink", denTone: "danger" });
+      const leftImproperView = equationImproperFraction(left, { numTone: "success", denTone: "danger" });
+      const rightImproperView = equationImproperFraction(right, { numTone: "success", denTone: "danger" });
       const steps = [
-        getConversionStep("Первая дробь", left),
-        getConversionStep("Вторая дробь", right)
+        getConversionStep(
+          "Первая дробь",
+          left,
+          equationOperationView(leftImproperView, "×", rightInputView)
+        ),
+        getConversionStep(
+          "Вторая дробь",
+          right,
+          equationOperationView(leftImproperView, "×", rightImproperView)
+        )
       ];
       const useCancel = options.showReduction !== false;
       const canceled = crossCancel(left, right);
       const hasCancellation = useCancel && canceled.factors.length > 0;
       const multLeft = hasCancellation ? canceled.left : left;
       const multRight = hasCancellation ? canceled.right : right;
+      const multLeftView = equationImproperFraction(multLeft, { numTone: "success", denTone: "danger" });
+      const multRightView = equationImproperFraction(multRight, { numTone: "success", denTone: "danger" });
 
       if (hasCancellation) {
         steps.push(makeStep(
@@ -325,13 +679,39 @@
             htmlFraction(multLeft.num, multLeft.den),
             "×",
             htmlFraction(multRight.num, multRight.den)
-          ])
+          ]),
+          equationShowcase([
+            equationImproperFraction(left, { numTone: "ink", denTone: "danger" }),
+            equationSymbol("×", "main"),
+            equationImproperFraction(right, { numTone: "ink", denTone: "danger" }),
+            equationSymbol("=", "main"),
+            equationImproperFraction(multLeft, {
+              numTone: "success",
+              denTone: "danger",
+              numNote: canceled.first > 1 ? `÷${canceled.first}` : "",
+              denNote: canceled.second > 1 ? `÷${canceled.second}` : ""
+            }),
+            equationSymbol("×", "main"),
+            equationImproperFraction(multRight, {
+              numTone: "success",
+              denTone: "danger",
+              numNote: canceled.second > 1 ? `÷${canceled.second}` : "",
+              denNote: canceled.first > 1 ? `÷${canceled.first}` : ""
+            })
+          ]),
+          equationOperationView(multLeftView, "×", multRightView)
         ));
       } else {
         steps.push(makeStep(
           "Проверяем возможность сокращения",
           "Подходящих общих делителей для сокращения крест-накрест нет, поэтому умножаем дроби как есть.",
-          expression([htmlFraction(left.num, left.den), "×", htmlFraction(right.num, right.den)])
+          expression([htmlFraction(left.num, left.den), "×", htmlFraction(right.num, right.den)]),
+          equationShowcase([
+            equationImproperFraction(left, { numTone: "success", denTone: "danger" }),
+            equationSymbol("×", "main"),
+            equationImproperFraction(right, { numTone: "success", denTone: "danger" })
+          ]),
+          equationOperationView(leftImproperView, "×", rightImproperView)
         ));
       }
 
@@ -349,7 +729,22 @@
           htmlFraction(multRight.num, multRight.den),
           "=",
           htmlFraction(rawResult.num, rawResult.den)
-        ])
+        ]),
+        equationShowcase([
+          equationImproperFraction(multLeft, { numTone: "success", denTone: "danger" }),
+          equationSymbol("×", "main"),
+          equationImproperFraction(multRight, { numTone: "success", denTone: "danger" }),
+          equationSymbol("=", "main"),
+          equationProductFraction(multLeft, multRight),
+          equationSymbol("=", "main"),
+          equationImproperFraction(rawResult, { numTone: "success", denTone: "danger" })
+        ]),
+        equationOperationView(
+          multLeftView,
+          "×",
+          multRightView,
+          equationImproperFraction(rawResult, { numTone: "success", denTone: "danger" })
+        )
       ));
 
       appendFinishSteps(steps, rawResult);
@@ -360,11 +755,24 @@
       if (right.num === 0) {
         throw new Error("На ноль делить нельзя: вторая дробь равна нулю.");
       }
+      const leftInputView = equationInputFraction(left, { wholeTone: "accent", numTone: "ink", denTone: "danger" });
+      const rightInputView = equationInputFraction(right, { wholeTone: "accent", numTone: "ink", denTone: "danger" });
+      const leftImproperView = equationImproperFraction(left, { numTone: "success", denTone: "danger" });
+      const rightImproperView = equationImproperFraction(right, { numTone: "success", denTone: "danger" });
       const steps = [
-        getConversionStep("Первая дробь", left),
-        getConversionStep("Вторая дробь", right)
+        getConversionStep(
+          "Первая дробь",
+          left,
+          equationOperationView(leftImproperView, "÷", rightInputView)
+        ),
+        getConversionStep(
+          "Вторая дробь",
+          right,
+          equationOperationView(leftImproperView, "÷", rightImproperView)
+        )
       ];
       const reciprocal = normalize({ num: right.den, den: right.num });
+      const reciprocalView = equationImproperFraction(reciprocal, { numTone: "success", denTone: "danger" });
 
       steps.push(makeStep(
         "Заменяем деление умножением",
@@ -377,7 +785,17 @@
           htmlFraction(left.num, left.den),
           "×",
           htmlFraction(reciprocal.num, reciprocal.den)
-        ])
+        ]),
+        equationShowcase([
+          equationImproperFraction(left, { numTone: "ink", denTone: "danger" }),
+          equationSymbol("÷", "main"),
+          equationImproperFraction(right, { numTone: "ink", denTone: "danger" }),
+          equationSymbol("=", "main"),
+          equationImproperFraction(left, { numTone: "ink", denTone: "danger" }),
+          equationSymbol("×", "main"),
+          equationImproperFraction(reciprocal, { numTone: "success", denTone: "danger" })
+        ]),
+        equationOperationView(leftImproperView, "×", reciprocalView)
       ));
 
       const multiplySteps = buildMultiplySteps(left, reciprocal, {
@@ -395,19 +813,40 @@
         steps.push(makeStep(
           "Сокращаем результат",
           `Числитель и знаменатель делятся на ${reduced.divisor}, поэтому дробь можно упростить.`,
-          expression([
-            htmlFraction(rawResult.num, rawResult.den),
-            "=",
-            htmlFraction(reduced.num, reduced.den)
-          ])
-        ));
-      } else if (showReduction) {
-        steps.push(makeStep(
-          "Проверяем сокращение",
-          "У числителя и знаменателя нет общего делителя больше 1, дробь уже несократимая.",
-          expression([htmlFraction(reduced.num, reduced.den)])
-        ));
-      }
+        expression([
+          htmlFraction(rawResult.num, rawResult.den),
+          "=",
+          htmlFraction(reduced.num, reduced.den)
+        ]),
+        equationShowcase([
+          equationImproperFraction(rawResult, { numTone: "ink", denTone: "danger" }),
+          equationSymbol("=", "main"),
+          equationImproperFraction(reduced, {
+            numTone: "success",
+            denTone: "danger",
+            numNote: `÷${reduced.divisor}`,
+            denNote: `÷${reduced.divisor}`
+          })
+        ]),
+        equationShowcase([
+          equationImproperFraction(rawResult, { numTone: "ink", denTone: "danger" }),
+          equationSymbol("=", "main"),
+          equationImproperFraction(reduced, { numTone: "success", denTone: "danger" })
+        ])
+      ));
+    } else if (showReduction) {
+      steps.push(makeStep(
+        "Проверяем сокращение",
+        "У числителя и знаменателя нет общего делителя больше 1, дробь уже несократимая.",
+        expression([htmlFraction(reduced.num, reduced.den)]),
+        equationShowcase([
+          equationImproperFraction(reduced, { numTone: "success", denTone: "danger" })
+        ]),
+        equationShowcase([
+          equationImproperFraction(reduced, { numTone: "success", denTone: "danger" })
+        ])
+      ));
+    }
 
       if (fields.showMixed.checked && Math.abs(reduced.num) >= reduced.den && reduced.den !== 1) {
         const sign = reduced.num < 0 ? "-" : "";
@@ -417,19 +856,33 @@
         steps.push(makeStep(
           "Выделяем целую часть",
           "Делим числитель на знаменатель: частное становится целой частью, остаток остается числителем.",
-          expression([
-            htmlFraction(reduced.num, reduced.den),
-            "=",
-            remainder === 0 ? `${sign}${whole}` : `${sign}${whole} ${htmlFraction(remainder, reduced.den)}`
-          ])
-        ));
-      }
+        expression([
+          htmlFraction(reduced.num, reduced.den),
+          "=",
+          remainder === 0 ? `${sign}${whole}` : `${sign}${whole} ${htmlFraction(remainder, reduced.den)}`
+        ]),
+        equationShowcase([
+          equationImproperFraction(reduced, { numTone: "success", denTone: "danger" }),
+          equationSymbol("=", "main"),
+          equationMixedResult(reduced, { wholeTone: "accent", numTone: "success", denTone: "danger" })
+        ]),
+        equationShowcase([
+          equationImproperFraction(reduced, { numTone: "success", denTone: "danger" }),
+          equationSymbol("=", "main"),
+          equationMixedResult(reduced, { wholeTone: "accent", numTone: "success", denTone: "danger" })
+        ])
+      ));
+    }
 
       const finalResult = reduce(rawResult);
+      const finalHeadline = fields.showMixed.checked
+        ? equationMixedResult(finalResult, { wholeTone: "accent", numTone: "success", denTone: "danger" })
+        : equationImproperFraction(finalResult, { numTone: "success", denTone: "danger" });
       steps.push(makeStep(
         "Ответ",
         "Финальный результат записан в удобном виде.",
-        expression([fields.showMixed.checked ? htmlMixed(finalResult) : htmlFraction(finalResult.num, finalResult.den)])
+        expression([fields.showMixed.checked ? htmlMixed(finalResult) : htmlFraction(finalResult.num, finalResult.den)]),
+        equationShowcase([finalHeadline])
       ));
     }
 
@@ -450,16 +903,50 @@
       return { left, right, steps: buildDivideSteps(left, right) };
     }
 
-    function renderEquation(left, right) {
-      elements.equation.innerHTML = expression([
-        htmlMixed(left),
-        `<span class="math-op">${operationMeta[state.operation].symbol}</span>`,
-        htmlMixed(right)
-      ]);
+    function renderEquation() {
+      if (state.steps.length === 0 || state.visibleSteps === 0) {
+        elements.equation.innerHTML = `<div class="empty-state compact-empty-state"><p>Текущий вид примера появится после решения.</p></div>`;
+        return;
+      }
+
+      const stepIndex = Math.min(state.visibleSteps, state.steps.length) - 1;
+      const step = state.steps[stepIndex];
+      const headline = step.headline || step.math;
+      const currentView = step.currentView || headline;
+      const detailMarkup = buildSpoilerMarkup(
+        `fraction-step-${stepIndex}`,
+        headline,
+        step.title === "Ответ"
+          ? "Нажмите, чтобы открыть подробную запись ответа"
+          : "Нажмите, чтобы открыть подробную запись шага",
+        "equation",
+        fields.hideAnswers.checked,
+        state.revealed
+      );
+
+      elements.equation.innerHTML = `
+        <div class="equation-dashboard">
+          <div class="equation-summary-grid">
+            <section class="equation-summary-card">
+              <span class="equation-summary-label">Исходный пример</span>
+              <div class="equation-summary-value">${state.sourceView}</div>
+            </section>
+            <section class="equation-summary-card equation-summary-card--current">
+              <span class="equation-summary-label">Текущий вид</span>
+              <div class="equation-summary-value">${currentView}</div>
+            </section>
+          </div>
+          <div class="equation-step-preview">
+            <span class="equation-summary-label">Подробно для этого шага</span>
+            ${detailMarkup}
+          </div>
+        </div>
+      `;
     }
 
     function renderSteps() {
       if (state.steps.length === 0) {
+        renderEquation();
         elements.steps.innerHTML = `<div class="empty-state"><p>Введите две дроби и нажмите «Решить пример».</p></div>`;
         elements.stepMeter.textContent = "Шаги появятся после решения";
         elements.stepMeterBottom.textContent = "Шаги появятся после решения";
@@ -473,6 +960,7 @@
       }
 
       const visible = state.steps.slice(0, state.visibleSteps);
+      renderEquation();
       elements.steps.innerHTML = visible.map((step, index) => `
         <article class="step-card">
           <div class="step-index">${index + 1}</div>
@@ -504,6 +992,11 @@
     }
 
     function renderError(message) {
+      state.steps = [];
+      state.visibleSteps = 0;
+      state.revealed = {};
+      state.sourceView = "";
+      renderEquation();
       elements.steps.innerHTML = `<p class="error">${message}</p>`;
       elements.stepMeter.textContent = "Исправьте данные в примере";
       elements.stepMeterBottom.textContent = "Исправьте данные в примере";
@@ -522,7 +1015,11 @@
         state.steps = result.steps;
         state.visibleSteps = Math.min(1, state.steps.length);
         state.revealed = {};
-        renderEquation(result.left, result.right);
+        state.sourceView = equationOperationView(
+          equationInputFraction(result.left, { wholeTone: "accent", numTone: "ink", denTone: "danger" }),
+          operationMeta[state.operation].symbol,
+          equationInputFraction(result.right, { wholeTone: "accent", numTone: "ink", denTone: "danger" })
+        );
         renderSteps();
       } catch (error) {
         renderError(error.message);
@@ -817,14 +1314,17 @@
       renderSteps();
     });
 
-    elements.steps.addEventListener("click", (event) => {
+    function handleFractionSpoilerClick(event) {
       const button = event.target.closest("[data-spoiler-button]");
       if (!button) {
         return;
       }
       state.revealed[button.dataset.spoilerKey] = true;
       renderSteps();
-    });
+    }
+
+    elements.steps.addEventListener("click", handleFractionSpoilerClick);
+    elements.equation.addEventListener("click", handleFractionSpoilerClick);
 
     fields.hideAnswers.addEventListener("change", () => {
       renderSteps();
