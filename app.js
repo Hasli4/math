@@ -3,7 +3,8 @@
       steps: [],
       visibleSteps: 0,
       revealed: {},
-      sourceView: ""
+      sourceView: "",
+      openHelpStep: null
     };
 
     const fields = {
@@ -434,28 +435,43 @@
       `;
     }
 
-    function makeStep(title, explain, math, headline = math, currentView = headline) {
-      return { title, explain, math, headline, currentView };
+    function makeStep(title, explain, math, headline = math, currentView = headline, help = explain) {
+      return { title, explain, math, headline, currentView, help };
+    }
+
+    function getFractionLabelForms(label) {
+      if (label === "Первая дробь") {
+        return {
+          acc: "первую дробь",
+          gen: "первой дроби"
+        };
+      }
+      return {
+        acc: "вторую дробь",
+        gen: "второй дроби"
+      };
     }
 
     function getConversionStep(label, input, currentView) {
+      const forms = getFractionLabelForms(label);
       const absWhole = Math.abs(input.whole);
       const absNum = Math.abs(input.inputNumerator);
       const absDen = Math.abs(input.inputDenominator);
       if (input.whole === 0) {
         return makeStep(
-          `${label}: дробь уже обыкновенная`,
+          `Оставляем ${forms.acc} в обыкновенном виде`,
           "Целой части нет, поэтому можно сразу работать с числителем и знаменателем.",
           expression([htmlFraction(input.num, input.den)]),
           equationShowcase([
             equationInputFraction(input, { numTone: "success", denTone: "danger" })
           ]),
-          currentView
+          currentView,
+          `Этот шаг нужен, чтобы проверить форму записи. У ${forms.gen} нет целой части, поэтому она уже готова к дальнейшим вычислениям.`
         );
       }
       const signText = input.num < 0 ? "С учетом минуса: " : "";
       return makeStep(
-        `${label}: переводим смешанное число`,
+        `Приводим ${forms.acc} к обыкновенному виду`,
         "Целую часть умножаем на знаменатель и прибавляем числитель. Так смешанное число становится неправильной дробью.",
         expression([
           `${signText}(${absWhole} × ${absDen} + ${absNum}) / ${absDen}`,
@@ -469,16 +485,18 @@
           equationSymbol("=", "main"),
           equationImproperFraction(input, { numTone: "success", denTone: "danger" })
         ]),
-        currentView
+        currentView,
+        `Здесь смешанное число превращается в неправильную дробь. Это нужно, потому что операции с дробями удобнее выполнять, когда есть только числитель и знаменатель.`
       );
     }
 
     function buildCommonDenominatorStep(label, frac, factor, commonDen, currentView) {
+      const forms = getFractionLabelForms(label);
       const adjustedNum = frac.num * factor;
       const adjustedFraction = normalize({ num: adjustedNum, den: commonDen });
       const stepTitle = factor === 1
-        ? `${label}: знаменатель уже ${commonDen}`
-        : `${label}: приводим к знаменателю ${commonDen}`;
+        ? `Оставляем ${forms.acc} со знаменателем ${commonDen}`
+        : `Приводим ${forms.acc} к знаменателю ${commonDen}`;
       const explain = factor === 1
         ? `У дроби ${plainFraction(frac)} знаменатель уже равен ${commonDen}, поэтому домножаем числитель и знаменатель на 1. Значение дроби не меняется.`
         : `У дроби ${plainFraction(frac)} знаменатель ${frac.den}. Чтобы получить ${commonDen}, домножаем числитель и знаменатель на ${factor}.`;
@@ -500,7 +518,10 @@
           equationSymbol("=", "main"),
           equationImproperFraction(adjustedFraction, { numTone: "success", denTone: "danger" })
         ]),
-        currentView
+        currentView,
+        factor === 1
+          ? `Этот шаг показывает, что у ${forms.gen} уже подходящий знаменатель. Значит, ее можно оставить без изменений.`
+          : `Мы умножаем числитель и знаменатель на одно и то же число. Так знаменатель становится общим, а значение дроби не меняется.`
       );
     }
 
@@ -533,7 +554,7 @@
 
       if (isSameDen) {
         steps.push(makeStep(
-          "Знаменатели уже одинаковые",
+          "Проверяем знаменатели дробей",
           `У первой дроби знаменатель ${left.den}, у второй дроби тоже ${right.den}. Приводить ничего не нужно.`,
           expression([htmlFraction(left.num, left.den), operationMeta[operation].symbol, htmlFraction(right.num, right.den)]),
           equationShowcase([
@@ -541,7 +562,8 @@
             equationSymbol(operationMeta[operation].symbol, "main"),
             equationImproperFraction(right, { numTone: "success", denTone: "danger" })
           ]),
-          equationOperationView(leftImproperView, symbol, rightImproperView)
+          equationOperationView(leftImproperView, symbol, rightImproperView),
+          "Этот шаг нужен, чтобы понять, требуется ли приведение к общему знаменателю. Если знаменатели уже одинаковые, можно сразу выполнять действие с числителями."
         ));
       } else {
         steps.push(makeStep(
@@ -553,7 +575,8 @@
             equationSymbol("=", "main"),
             equationValue(commonDen, "accent")
           ]),
-          equationOperationView(leftImproperView, symbol, rightImproperView)
+          equationOperationView(leftImproperView, symbol, rightImproperView),
+          "Общий знаменатель нужен, чтобы обе дроби были записаны в одинаковых долях. Мы выбираем наименьшее подходящее число, чтобы вычисления оставались понятными и компактными."
         ));
         steps.push(buildCommonDenominatorStep(
           "Первая дробь",
@@ -607,7 +630,8 @@
           symbol,
           equationImproperFraction(rightAdjusted, { numTone: "success", denTone: "danger" }),
           equationImproperFraction(rawResult, { numTone: "success", denTone: "danger" })
-        )
+        ),
+        "После приведения к общему знаменателю обе дроби описывают одинаковые доли. Поэтому действие выполняется только с числителями, а знаменатель сохраняется."
       ));
 
       appendFinishSteps(steps, rawResult);
@@ -669,7 +693,7 @@
 
       if (hasCancellation) {
         steps.push(makeStep(
-          "Сокращаем крест-накрест",
+          "Сокращаем дроби перед умножением",
           `Перед умножением можно сократить числитель одной дроби со знаменателем другой. Здесь использованы общие делители: ${canceled.factors.join(", ")}.`,
           expression([
             htmlFraction(left.num, left.den),
@@ -699,11 +723,12 @@
               denNote: canceled.first > 1 ? `÷${canceled.first}` : ""
             })
           ]),
-          equationOperationView(multLeftView, "×", multRightView)
+          equationOperationView(multLeftView, "×", multRightView),
+          "Перед умножением полезно сократить дроби крест-накрест. Это уменьшает числа в записи и делает следующий шаг проще."
         ));
       } else {
         steps.push(makeStep(
-          "Проверяем возможность сокращения",
+          "Проверяем сокращение перед умножением",
           "Подходящих общих делителей для сокращения крест-накрест нет, поэтому умножаем дроби как есть.",
           expression([htmlFraction(left.num, left.den), "×", htmlFraction(right.num, right.den)]),
           equationShowcase([
@@ -711,7 +736,8 @@
             equationSymbol("×", "main"),
             equationImproperFraction(right, { numTone: "success", denTone: "danger" })
           ]),
-          equationOperationView(leftImproperView, "×", rightImproperView)
+          equationOperationView(leftImproperView, "×", rightImproperView),
+          "Этот шаг показывает, можно ли упростить запись перед умножением. Если общих делителей нет, дроби умножаются без предварительного сокращения."
         ));
       }
 
@@ -744,7 +770,8 @@
           "×",
           multRightView,
           equationImproperFraction(rawResult, { numTone: "success", denTone: "danger" })
-        )
+        ),
+        "При умножении дробей отдельно перемножаются числители и отдельно знаменатели. Так получается новая дробь-результат."
       ));
 
       appendFinishSteps(steps, rawResult);
@@ -775,7 +802,7 @@
       const reciprocalView = equationImproperFraction(reciprocal, { numTone: "success", denTone: "danger" });
 
       steps.push(makeStep(
-        "Заменяем деление умножением",
+        "Заменяем деление умножением на обратную дробь",
         "Чтобы разделить на дробь, умножаем на обратную дробь: числитель и знаменатель второй дроби меняются местами.",
         expression([
           htmlFraction(left.num, left.den),
@@ -795,7 +822,8 @@
           equationSymbol("×", "main"),
           equationImproperFraction(reciprocal, { numTone: "success", denTone: "danger" })
         ]),
-        equationOperationView(leftImproperView, "×", reciprocalView)
+        equationOperationView(leftImproperView, "×", reciprocalView),
+        "Деление на дробь заменяется умножением на обратную дробь. Это стандартное правило, которое переводит пример в более удобный для вычисления вид."
       ));
 
       const multiplySteps = buildMultiplySteps(left, reciprocal, {
@@ -811,7 +839,7 @@
       const showReduction = fields.showReduction.checked;
       if (showReduction && canReduce) {
         steps.push(makeStep(
-          "Сокращаем результат",
+          "Сокращаем полученную дробь",
           `Числитель и знаменатель делятся на ${reduced.divisor}, поэтому дробь можно упростить.`,
         expression([
           htmlFraction(rawResult.num, rawResult.den),
@@ -832,11 +860,12 @@
           equationImproperFraction(rawResult, { numTone: "ink", denTone: "danger" }),
           equationSymbol("=", "main"),
           equationImproperFraction(reduced, { numTone: "success", denTone: "danger" })
-        ])
+        ]),
+        "После вычисления полезно проверить, можно ли сократить дробь. Это помогает записать результат в более простом и привычном виде."
       ));
     } else if (showReduction) {
       steps.push(makeStep(
-        "Проверяем сокращение",
+        "Проверяем, можно ли сократить результат",
         "У числителя и знаменателя нет общего делителя больше 1, дробь уже несократимая.",
         expression([htmlFraction(reduced.num, reduced.den)]),
         equationShowcase([
@@ -844,7 +873,8 @@
         ]),
         equationShowcase([
           equationImproperFraction(reduced, { numTone: "success", denTone: "danger" })
-        ])
+        ]),
+        "Здесь мы убеждаемся, что результат уже нельзя упростить. Значит, дробь записана в окончательном сокращенном виде."
       ));
     }
 
@@ -870,7 +900,8 @@
           equationImproperFraction(reduced, { numTone: "success", denTone: "danger" }),
           equationSymbol("=", "main"),
           equationMixedResult(reduced, { wholeTone: "accent", numTone: "success", denTone: "danger" })
-        ])
+        ]),
+        "Если числитель больше знаменателя, из неправильной дроби можно выделить целую часть. Такой ответ часто удобнее читать ученику."
       ));
     }
 
@@ -879,10 +910,12 @@
         ? equationMixedResult(finalResult, { wholeTone: "accent", numTone: "success", denTone: "danger" })
         : equationImproperFraction(finalResult, { numTone: "success", denTone: "danger" });
       steps.push(makeStep(
-        "Ответ",
+        "Записываем ответ",
         "Финальный результат записан в удобном виде.",
         expression([fields.showMixed.checked ? htmlMixed(finalResult) : htmlFraction(finalResult.num, finalResult.den)]),
-        equationShowcase([finalHeadline])
+        equationShowcase([finalHeadline]),
+        equationShowcase([finalHeadline]),
+        "Это итог примера после всех преобразований. Здесь уже показан окончательный ответ в том виде, который нужен ученику."
       ));
     }
 
@@ -913,10 +946,11 @@
       const step = state.steps[stepIndex];
       const headline = step.headline || step.math;
       const currentView = step.currentView || headline;
+      const isAnswerStep = /ответ/i.test(step.title);
       const detailMarkup = buildSpoilerMarkup(
         `fraction-step-${stepIndex}`,
         headline,
-        step.title === "Ответ"
+        isAnswerStep
           ? "Нажмите, чтобы открыть подробную запись ответа"
           : "Нажмите, чтобы открыть подробную запись шага",
         "equation",
@@ -965,12 +999,29 @@
         <article class="step-card">
           <div class="step-index">${index + 1}</div>
           <div class="step-content">
-            <h3 class="step-title">${step.title}</h3>
+            <div class="step-title-row">
+              <h3 class="step-title">${step.title}</h3>
+              <div class="step-help-wrap">
+                <button
+                  class="step-help-toggle"
+                  type="button"
+                  data-step-help-toggle="${index}"
+                  aria-label="Открыть справку по шагу"
+                  aria-expanded="${state.openHelpStep === index ? "true" : "false"}"
+                >?</button>
+                ${state.openHelpStep === index ? `
+                  <div class="step-help-popover" role="note">
+                    <strong>Что делает этот шаг</strong>
+                    <p>${step.help}</p>
+                  </div>
+                ` : ""}
+              </div>
+            </div>
             <p class="step-explain">${step.explain}</p>
             ${buildSpoilerMarkup(
               `fraction-step-${index}`,
               `<div class="step-math">${step.math}</div>`,
-              step.title === "Ответ" ? "Нажмите, чтобы открыть ответ" : "Нажмите, чтобы открыть вычисления",
+              /ответ/i.test(step.title) ? "Нажмите, чтобы открыть ответ" : "Нажмите, чтобы открыть вычисления",
               "block",
               fields.hideAnswers.checked,
               state.revealed
@@ -996,6 +1047,7 @@
       state.visibleSteps = 0;
       state.revealed = {};
       state.sourceView = "";
+      state.openHelpStep = null;
       renderEquation();
       elements.steps.innerHTML = `<p class="error">${message}</p>`;
       elements.stepMeter.textContent = "Исправьте данные в примере";
@@ -1015,6 +1067,7 @@
         state.steps = result.steps;
         state.visibleSteps = Math.min(1, state.steps.length);
         state.revealed = {};
+        state.openHelpStep = null;
         state.sourceView = equationOperationView(
           equationInputFraction(result.left, { wholeTone: "accent", numTone: "ink", denTone: "danger" }),
           operationMeta[state.operation].symbol,
@@ -1315,6 +1368,14 @@
     });
 
     function handleFractionSpoilerClick(event) {
+      const helpButton = event.target.closest("[data-step-help-toggle]");
+      if (helpButton) {
+        const stepIndex = Number(helpButton.dataset.stepHelpToggle);
+        state.openHelpStep = state.openHelpStep === stepIndex ? null : stepIndex;
+        renderSteps();
+        return;
+      }
+
       const button = event.target.closest("[data-spoiler-button]");
       if (!button) {
         return;
