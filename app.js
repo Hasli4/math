@@ -2846,12 +2846,395 @@
     setPercentMode("percentOfNumber", false);
     handlePercentSolve(new Event("submit"));
 
+    const numberSystemsState = {
+      steps: [],
+      visibleSteps: 0,
+      equation: "",
+      answer: "—",
+      revealed: {}
+    };
+
+    const numberSystemsElements = {
+      form: document.getElementById("numberSystemsForm"),
+      value: document.getElementById("numberSystemsValue"),
+      from: document.getElementById("numberSystemsFrom"),
+      to: document.getElementById("numberSystemsTo"),
+      readable: document.getElementById("numberSystemsReadable"),
+      hint: document.getElementById("numberSystemsHint"),
+      hideAnswers: document.getElementById("numberSystemsHideAnswers"),
+      summaryCard: document.getElementById("numberSystemsSummaryCard"),
+      answerPreview: document.getElementById("numberSystemsAnswerPreview"),
+      equation: document.getElementById("numberSystemsEquation"),
+      steps: document.getElementById("numberSystemsSteps"),
+      stepMeter: document.getElementById("numberSystemsStepMeter"),
+      stepMeterBottom: document.getElementById("numberSystemsStepMeterBottom"),
+      prevStep: document.getElementById("numberSystemsPrevStep"),
+      nextStep: document.getElementById("numberSystemsNextStep"),
+      showAll: document.getElementById("numberSystemsShowAll"),
+      prevStepBottom: document.getElementById("numberSystemsPrevStepBottom"),
+      nextStepBottom: document.getElementById("numberSystemsNextStepBottom"),
+      showAllBottom: document.getElementById("numberSystemsShowAllBottom")
+    };
+
+    const baseDigits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    function baseName(base) {
+      const specialNames = {
+        2: "двоичной",
+        3: "троичной",
+        4: "четверичной",
+        5: "пятеричной",
+        6: "шестеричной",
+        7: "семеричной",
+        8: "восьмеричной",
+        9: "девятеричной",
+        10: "десятичной",
+        12: "двенадцатеричной",
+        16: "шестнадцатеричной"
+      };
+      return specialNames[base] || `системы с основанием ${base}`;
+    }
+
+    function baseOptionLabel(base) {
+      return String(base);
+    }
+
+    function baseNumberMarkup(value, base) {
+      return `<span class="base-number">${escapeTextMarkup(value)}<sub>${base}</sub></span>`;
+    }
+
+    function baseMathBlock(lines) {
+      return `<div class="number-system-math">${lines.map((line) => `<div>${line}</div>`).join("")}</div>`;
+    }
+
+    function digitValue(symbol) {
+      return baseDigits.indexOf(symbol);
+    }
+
+    function parseBaseSystemNumber(rawValue, base) {
+      const value = String(rawValue).trim().replace(/\s+/g, "").toUpperCase();
+      if (!value) {
+        throw new Error("Введите число для перевода.");
+      }
+
+      let decimalValue = 0n;
+      const digits = [];
+      for (const symbol of value) {
+        const digit = digitValue(symbol);
+        if (digit < 0 || digit >= base) {
+          throw new Error(`Символ «${symbol}» нельзя использовать в системе с основанием ${base}. Допустимые цифры: от 0 до ${baseDigits[base - 1]}.`);
+        }
+        digits.push(digit);
+        decimalValue = decimalValue * BigInt(base) + BigInt(digit);
+      }
+
+      const normalized = value.replace(/^0+(?=.)/, "") || "0";
+      return { value: normalized, digits, decimalValue };
+    }
+
+    function bigIntToBase(value, base) {
+      if (value === 0n) {
+        return "0";
+      }
+
+      let current = value;
+      const baseValue = BigInt(base);
+      let result = "";
+      while (current > 0n) {
+        const remainder = Number(current % baseValue);
+        result = baseDigits[remainder] + result;
+        current /= baseValue;
+      }
+      return result;
+    }
+
+    function buildPlaceValueExpression(parsed, fromBase) {
+      return parsed.digits.map((digit, index) => {
+        const power = parsed.digits.length - index - 1;
+        return `${baseDigits[digit]} × ${fromBase}<sup>${power}</sup>`;
+      }).join(" + ");
+    }
+
+    function buildBaseConversionSolution() {
+      const fromBase = Number(numberSystemsElements.from.value);
+      const toBase = Number(numberSystemsElements.to.value);
+      const parsed = parseBaseSystemNumber(numberSystemsElements.value.value, fromBase);
+      const sourceMarkup = baseNumberMarkup(parsed.value, fromBase);
+      const decimalText = parsed.decimalValue.toString();
+      const decimalMarkup = baseNumberMarkup(decimalText, 10);
+      const resultText = bigIntToBase(parsed.decimalValue, toBase);
+      const resultMarkup = baseNumberMarkup(resultText, toBase);
+      const steps = [];
+
+      steps.push(makeDivisionStep(
+        "Шаг 1. Проверяем запись числа",
+        `Посмотрите на цифры числа ${parsed.value}. Все они должны быть меньше основания ${fromBase}. Попробуйте назвать наибольшую допустимую цифру этой системы.`,
+        baseMathBlock([
+          `${sourceMarkup}: все цифры допустимы для основания ${fromBase}.`,
+          `Наибольшая допустимая цифра: ${baseDigits[fromBase - 1]}.`
+        ]),
+        ""
+      ));
+
+      if (fromBase !== 10) {
+        steps.push(makeDivisionStep(
+          "Шаг 2. Раскладываем число по разрядам",
+          `Начните справа: вес крайнего разряда равен ${fromBase}⁰, следующего — ${fromBase}¹ и так далее. Составьте сумму произведений цифр на степени основания.`,
+          baseMathBlock([
+            `${sourceMarkup} = ${buildPlaceValueExpression(parsed, fromBase)}`
+          ]),
+          ""
+        ));
+
+        steps.push(makeDivisionStep(
+          "Шаг 3. Находим десятичное значение",
+          "Вычислите каждую степень, умножьте ее на соответствующую цифру и сложите результаты. Это значение числа в десятичной системе.",
+          baseMathBlock([
+            `${buildPlaceValueExpression(parsed, fromBase)} = ${decimalMarkup}`
+          ]),
+          ""
+        ));
+      } else {
+        steps.push(makeDivisionStep(
+          "Шаг 2. Фиксируем десятичное значение",
+          "Исходное число уже записано в десятичной системе, поэтому промежуточный перевод не нужен.",
+          baseMathBlock([`${sourceMarkup} = ${decimalMarkup}`]),
+          ""
+        ));
+      }
+
+      if (toBase === 10) {
+        steps.push(makeDivisionStep(
+          "Шаг 4. Записываем результат",
+          "Целевая система — десятичная. Значит, найденное значение и есть ответ. Проверьте, что основание 10 указано у результата.",
+          baseMathBlock([`${sourceMarkup} = ${decimalMarkup}`]),
+          ""
+        ));
+      } else {
+        steps.push(makeDivisionStep(
+          "Шаг 4. Готовимся к переводу в новую систему",
+          `Чтобы получить запись в системе с основанием ${toBase}, будем делить десятичное число на ${toBase}. В каждом шаге важен остаток: он станет одной из цифр ответа.`,
+          baseMathBlock([`${decimalMarkup} → ?<sub>${toBase}</sub>`]),
+          ""
+        ));
+
+        const divisions = [];
+        let current = parsed.decimalValue;
+        const baseValue = BigInt(toBase);
+        if (current === 0n) {
+          divisions.push({ dividend: 0n, quotient: 0n, remainder: 0 });
+        }
+        while (current > 0n) {
+          const quotient = current / baseValue;
+          const remainder = Number(current % baseValue);
+          divisions.push({ dividend: current, quotient, remainder });
+          current = quotient;
+        }
+
+        divisions.forEach((division, index) => {
+          const remainderSymbol = baseDigits[division.remainder];
+          steps.push(makeDivisionStep(
+            `Шаг ${steps.length + 1}. Делим ${division.dividend.toString()} на ${toBase}`,
+            `Попробуйте найти частное и остаток. Остаток ${remainderSymbol} запоминаем: позднее он станет цифрой результата.`,
+            baseMathBlock([
+              `${division.dividend.toString()} = ${division.quotient.toString()} × ${toBase} + ${remainderSymbol}`,
+              `Остаток: ${remainderSymbol}`
+            ]),
+            ""
+          ));
+        });
+
+        const remainders = divisions.map((division) => baseDigits[division.remainder]);
+        steps.push(makeDivisionStep(
+          `Шаг ${steps.length + 1}. Читаем остатки снизу вверх`,
+          `Остатки были получены в порядке от младшего разряда к старшему. Запишите их в обратном порядке: ${remainders.join(", ")} → ?`,
+          baseMathBlock([
+            `Остатки снизу вверх: ${remainders.slice().reverse().join(" ")}`,
+            `${decimalMarkup} = ${resultMarkup}`
+          ]),
+          ""
+        ));
+      }
+
+      steps.push(makeDivisionStep(
+        "Ответ",
+        "Сравните основание у исходной и итоговой записи. Само значение числа не изменилось — изменилась только его запись.",
+        baseMathBlock([`${sourceMarkup} = ${resultMarkup}`]),
+        ""
+      ));
+
+      return {
+        equation: `${parsed.value} (${fromBase}) = ${resultText} (${toBase})`,
+        answer: `${resultText}${toBase === 10 ? "" : ` (${toBase})`}`,
+        steps
+      };
+    }
+
+    function updateNumberSystemsHint() {
+      const fromBase = Number(numberSystemsElements.from.value);
+      const toBase = Number(numberSystemsElements.to.value);
+      numberSystemsElements.readable.textContent = `из ${baseName(fromBase)} в ${baseName(toBase)}`;
+      numberSystemsElements.hint.innerHTML = `
+        <strong>Как будет строиться решение</strong>
+        <span>${fromBase === 10
+          ? `Сначала возьмем десятичное число, затем будем делить его на ${toBase} и собирать остатки.`
+          : `Сначала переведем запись из ${baseName(fromBase)} в десятичную по разрядам, затем построим запись в системе с основанием ${toBase}.`
+        }</span>
+      `;
+    }
+
+    function renderNumberSystemsSolution() {
+      if (numberSystemsState.steps.length === 0) {
+        numberSystemsElements.equation.innerHTML = "";
+        numberSystemsElements.steps.innerHTML = `<div class="empty-state"><p>Введите число, выберите системы счисления и нажмите «Разобрать перевод».</p></div>`;
+        numberSystemsElements.answerPreview.textContent = "—";
+        [
+          numberSystemsElements.prevStep,
+          numberSystemsElements.nextStep,
+          numberSystemsElements.showAll,
+          numberSystemsElements.prevStepBottom,
+          numberSystemsElements.nextStepBottom,
+          numberSystemsElements.showAllBottom
+        ].forEach((button) => { button.disabled = true; });
+        numberSystemsElements.stepMeter.textContent = "Шаги появятся после решения";
+        numberSystemsElements.stepMeterBottom.textContent = "Шаги появятся после решения";
+        return;
+      }
+
+      const visibleSteps = numberSystemsState.steps.slice(0, numberSystemsState.visibleSteps);
+      const hideFinalAnswer = numberSystemsElements.hideAnswers.checked;
+      numberSystemsElements.equation.innerHTML = buildSpoilerMarkup(
+        "number-systems-equation",
+        `<span class="division-equation-answer">${escapeTextMarkup(numberSystemsState.equation)}</span>`,
+        "Нажмите, чтобы открыть итоговый перевод",
+        "equation",
+        hideFinalAnswer,
+        numberSystemsState.revealed
+      );
+      numberSystemsElements.answerPreview.innerHTML = buildSpoilerMarkup(
+        "number-systems-answer",
+        `<span>${escapeTextMarkup(numberSystemsState.answer)}</span>`,
+        "Нажмите, чтобы открыть ответ",
+        "inline",
+        hideFinalAnswer,
+        numberSystemsState.revealed
+      );
+      numberSystemsElements.steps.innerHTML = visibleSteps.map((step, index) => `
+        <article class="step-card number-system-step-card">
+          <div class="step-index">${index + 1}</div>
+          <div class="step-content">
+            <h3 class="step-title">${step.title}</h3>
+            <p class="step-explain">${step.explain}</p>
+            ${buildSpoilerMarkup(
+              `number-systems-step-${index}`,
+              `<div class="step-math">${step.math}</div>`,
+              index === visibleSteps.length - 1 && step.title === "Ответ" ? "Нажмите, чтобы открыть ответ" : "Проверить себя",
+              "block",
+              true,
+              numberSystemsState.revealed
+            )}
+          </div>
+        </article>
+      `).join("");
+
+      const meterText = `Показано ${numberSystemsState.visibleSteps} из ${numberSystemsState.steps.length}`;
+      const prevDisabled = numberSystemsState.visibleSteps <= 1;
+      const nextDisabled = numberSystemsState.visibleSteps >= numberSystemsState.steps.length;
+      numberSystemsElements.stepMeter.textContent = meterText;
+      numberSystemsElements.stepMeterBottom.textContent = meterText;
+      [numberSystemsElements.prevStep, numberSystemsElements.prevStepBottom].forEach((button) => { button.disabled = prevDisabled; });
+      [numberSystemsElements.nextStep, numberSystemsElements.nextStepBottom, numberSystemsElements.showAll, numberSystemsElements.showAllBottom].forEach((button) => { button.disabled = nextDisabled; });
+    }
+
+    function renderNumberSystemsError(message) {
+      numberSystemsState.steps = [];
+      numberSystemsState.visibleSteps = 0;
+      numberSystemsState.revealed = {};
+      numberSystemsElements.equation.innerHTML = "";
+      numberSystemsElements.steps.innerHTML = `<p class="error">${escapeTextMarkup(message)}</p>`;
+      numberSystemsElements.answerPreview.textContent = "—";
+      numberSystemsElements.stepMeter.textContent = "Исправьте данные в примере";
+      numberSystemsElements.stepMeterBottom.textContent = "Исправьте данные в примере";
+      [
+        numberSystemsElements.prevStep,
+        numberSystemsElements.nextStep,
+        numberSystemsElements.showAll,
+        numberSystemsElements.prevStepBottom,
+        numberSystemsElements.nextStepBottom,
+        numberSystemsElements.showAllBottom
+      ].forEach((button) => { button.disabled = true; });
+    }
+
+    function handleNumberSystemsSolve(event) {
+      event.preventDefault();
+      try {
+        const result = buildBaseConversionSolution();
+        numberSystemsState.steps = result.steps;
+        numberSystemsState.visibleSteps = Math.min(1, result.steps.length);
+        numberSystemsState.equation = result.equation;
+        numberSystemsState.answer = result.answer;
+        numberSystemsState.revealed = {};
+        renderNumberSystemsSolution();
+      } catch (error) {
+        renderNumberSystemsError(error.message);
+      }
+    }
+
+    for (let base = 2; base <= 36; base += 1) {
+      const option = document.createElement("option");
+      option.value = String(base);
+      option.textContent = baseOptionLabel(base);
+      numberSystemsElements.from.append(option);
+      numberSystemsElements.to.append(option.cloneNode(true));
+    }
+    numberSystemsElements.from.value = "2";
+    numberSystemsElements.to.value = "10";
+    updateNumberSystemsHint();
+    numberSystemsElements.form.addEventListener("submit", handleNumberSystemsSolve);
+    [numberSystemsElements.from, numberSystemsElements.to].forEach((select) => {
+      select.addEventListener("change", () => {
+        updateNumberSystemsHint();
+        handleNumberSystemsSolve(new Event("submit"));
+      });
+    });
+    numberSystemsElements.hideAnswers.addEventListener("change", renderNumberSystemsSolution);
+    [numberSystemsElements.prevStep, numberSystemsElements.prevStepBottom].forEach((button) => {
+      button.addEventListener("click", () => {
+        numberSystemsState.visibleSteps = Math.max(1, numberSystemsState.visibleSteps - 1);
+        renderNumberSystemsSolution();
+      });
+    });
+    [numberSystemsElements.nextStep, numberSystemsElements.nextStepBottom].forEach((button) => {
+      button.addEventListener("click", () => {
+        numberSystemsState.visibleSteps = Math.min(numberSystemsState.steps.length, numberSystemsState.visibleSteps + 1);
+        renderNumberSystemsSolution();
+      });
+    });
+    [numberSystemsElements.showAll, numberSystemsElements.showAllBottom].forEach((button) => {
+      button.addEventListener("click", () => {
+        numberSystemsState.visibleSteps = numberSystemsState.steps.length;
+        renderNumberSystemsSolution();
+      });
+    });
+    [numberSystemsElements.steps, numberSystemsElements.equation, numberSystemsElements.summaryCard].forEach((container) => {
+      container.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-spoiler-button]");
+        if (!button) {
+          return;
+        }
+        numberSystemsState.revealed[button.dataset.spoilerKey] = true;
+        renderNumberSystemsSolution();
+      });
+    });
+    handleNumberSystemsSolve(new Event("submit"));
+
     const viewButtons = document.querySelectorAll("[data-view]");
     const viewSections = document.querySelectorAll("[data-view-section]");
     const subtitle = document.querySelector(".subtitle");
     const subtitles = {
       fractions: "Дроби: сложение, вычитание, умножение и деление.",
       percents: "Проценты: процент от числа и число по известному проценту.",
+      numberSystems: "Системы счисления: подробный перевод чисел между основаниями от 2 до 36.",
       longDivision: "Столбик: сложение, вычитание, умножение и деление по школьной записи.",
       problems: "Задачи: условие, рисунок и пошаговые пояснения."
     };

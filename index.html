@@ -31,6 +31,7 @@
       <nav class="mode-tabs" aria-label="Разделы тренажера">
         <button class="active" type="button" data-view="fractions">Дроби</button>
         <button type="button" data-view="percents">Проценты</button>
+        <button type="button" data-view="numberSystems">Системы счисления</button>
         <button type="button" data-view="longDivision">Столбик</button>
         <button type="button" data-view="problems">Задачи</button>
         <button type="button" disabled>Уравнения</button>
@@ -377,6 +378,127 @@
             <div class="note">
               <strong id="percentNoteTitle3">Число по проценту</strong>
               <span id="percentNoteText3">Чтобы восстановить целое по части, нужно разделить известную часть на долю, которую она составляет.</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="view-section" id="numberSystemsView" data-view-section="numberSystems" hidden>
+      <div class="workspace" aria-label="Тренажер систем счисления">
+        <form class="panel builder" id="numberSystemsForm">
+          <div>
+            <h2 class="panel-title">Перевод систем счисления</h2>
+            <p class="panel-note">Введите целое неотрицательное число, выберите исходное и целевое основания. Буквы A–Z обозначают цифры от 10 до 35.</p>
+          </div>
+
+          <div class="guide-card-grid">
+            <article class="guide-card">
+              <strong>Из любой системы в десятичную</strong>
+              <span>Раскладываем число по разрядам: каждая цифра умножается на основание системы в нужной степени.</span>
+            </article>
+            <article class="guide-card">
+              <strong>Из десятичной в другую систему</strong>
+              <span>Делим число на новое основание, записываем остатки и читаем их снизу вверх.</span>
+            </article>
+          </div>
+
+          <div class="fraction-row">
+            <div class="row-label">
+              <span>Что переводим</span>
+              <span id="numberSystemsReadable" class="muted">из двоичной в десятичную</span>
+            </div>
+            <div class="base-system-input-grid">
+              <label class="field-group">
+                <span>Число</span>
+                <input id="numberSystemsValue" class="text-input" type="text" value="100001" placeholder="Например, 100001" autocomplete="off" spellcheck="false">
+              </label>
+              <label class="field-group compact-field">
+                <span>Из системы</span>
+                <select id="numberSystemsFrom" class="text-input" aria-label="Исходная система счисления"></select>
+              </label>
+              <label class="field-group compact-field">
+                <span>В систему</span>
+                <select id="numberSystemsTo" class="text-input" aria-label="Целевая система счисления"></select>
+              </label>
+            </div>
+          </div>
+
+          <div class="guide-card guide-card--accent" id="numberSystemsHint" aria-live="polite">
+            <strong>Как будет строиться решение</strong>
+            <span>Сначала разберем запись 100001₂ по разрядам, затем получим привычное десятичное число.</span>
+          </div>
+
+          <div class="options" aria-label="Настройки решения систем счисления">
+            <label class="toggle">
+              <span>Скрывать итоговый ответ до клика</span>
+              <input id="numberSystemsHideAnswers" type="checkbox" checked>
+            </label>
+          </div>
+
+          <div class="division-summary-card" id="numberSystemsSummaryCard" aria-live="polite">
+            <div class="division-summary-row">
+              <span>Результат</span>
+              <strong id="numberSystemsAnswerPreview">—</strong>
+            </div>
+          </div>
+
+          <div class="actions single-action">
+            <button class="primary-btn" type="submit">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Разобрать перевод
+            </button>
+          </div>
+
+          <div class="side-step-panel">
+            <span id="numberSystemsStepMeterBottom" class="step-meter">Шаги появятся после решения</span>
+            <div class="step-buttons">
+              <button class="ghost-btn" id="numberSystemsPrevStepBottom" type="button" disabled>Назад</button>
+              <button class="ghost-btn" id="numberSystemsNextStepBottom" type="button" disabled>Далее</button>
+              <button class="ghost-btn" id="numberSystemsShowAllBottom" type="button" disabled>Все шаги</button>
+            </div>
+          </div>
+        </form>
+
+        <section class="panel result-area" aria-live="polite">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">Пошаговый перевод</h2>
+              <p class="panel-note">Сначала понимаем значение исходной записи, затем строим запись в новой системе счисления.</p>
+            </div>
+          </div>
+
+          <div class="equation-stage division-equation-stage">
+            <div id="numberSystemsEquation" class="equation division-equation"></div>
+
+            <div class="step-controls">
+              <span id="numberSystemsStepMeter" class="step-meter">Шаги появятся после решения</span>
+              <div class="step-buttons">
+                <button class="ghost-btn" id="numberSystemsPrevStep" type="button" disabled>Назад</button>
+                <button class="ghost-btn" id="numberSystemsNextStep" type="button" disabled>Далее</button>
+                <button class="ghost-btn" id="numberSystemsShowAll" type="button" disabled>Все шаги</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="numberSystemsSteps" class="steps-list">
+            <div class="empty-state"><p>Введите число, выберите системы счисления и нажмите «Разобрать перевод».</p></div>
+          </div>
+
+          <div class="teacher-notes">
+            <div class="note">
+              <strong>Цифры и основание</strong>
+              <span>В системе с основанием p используются цифры от 0 до p − 1.</span>
+            </div>
+            <div class="note">
+              <strong>Значение разрядов</strong>
+              <span>Вес разряда справа налево равен p⁰, p¹, p² и далее.</span>
+            </div>
+            <div class="note">
+              <strong>Остатки</strong>
+              <span>При переводе из десятичной системы остатки записывают в обратном порядке.</span>
             </div>
           </div>
         </section>

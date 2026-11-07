@@ -610,6 +610,53 @@
       gap: 10px;
     }
 
+    .base-system-input-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(132px, 0.55fr) minmax(132px, 0.55fr);
+      gap: 10px;
+      align-items: end;
+    }
+
+    .base-number {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 2px;
+      font-weight: 900;
+      color: var(--primary-dark);
+      white-space: nowrap;
+    }
+
+    .base-number sub {
+      color: var(--accent);
+      font-size: 0.66em;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .number-system-math {
+      display: grid;
+      gap: 8px;
+      color: var(--ink);
+      font-weight: 800;
+      line-height: 1.55;
+    }
+
+    .number-system-math sup {
+      font-size: 0.72em;
+      line-height: 0;
+    }
+
+    .number-system-step-card .step-explain::before {
+      content: "Подсказка";
+      display: block;
+      margin-bottom: 4px;
+      color: var(--primary-dark);
+      font-size: 0.76rem;
+      font-weight: 900;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
     .compact-field {
       min-width: 0;
     }
@@ -1994,6 +2041,14 @@
 
       .division-input-grid {
         grid-template-columns: 1fr;
+      }
+
+      .base-system-input-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .base-system-input-grid > :first-child {
+        grid-column: 1 / -1;
       }
 
       .inline-field {
